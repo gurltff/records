@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { watchAuthState, getLocalCurrentUser, isDemoMode } from '../services/authService'
+import { watchAuthState, getLocalCurrentUser, isLocalAuth } from '../services/authService'
 import { getById } from '../services/store'
 import type { UserProfile } from '../types'
 
@@ -11,7 +11,7 @@ interface AuthCtx {
 
 const Ctx = createContext<AuthCtx>({ user: null, loading: true, setUser: () => {} })
 
-const KNOWN_ROLES = ['student', 'teacher', 'cr']
+const KNOWN_ROLES = ['student', 'teacher', 'cr', 'admin']
 
 /*
  * An earlier build had a separate "alumni" role. Anyone still holding such an
@@ -35,8 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const requestId = ++request
       if (!mounted) return
 
-      // Demo authentication is local and must always win over Firebase auth.
-      if (isDemoMode()) {
+      // Local (demo / no-Firebase) authentication must always win over Firebase auth.
+      if (isLocalAuth()) {
         const demoUser = getLocalCurrentUser()
         if (mounted && requestId === request) {
           setUser(withKnownRole(demoUser))
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const interval = window.setInterval(() => {
       if (!mounted) return
-      if (isDemoMode()) {
+      if (isLocalAuth()) {
         const latest = getLocalCurrentUser()
         if (latest) setUser(withKnownRole(latest))
       }

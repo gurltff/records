@@ -48,7 +48,7 @@ export default function JourneyTimeline({ profile, verifications }: { profile: S
                 <p className="font-semibold leading-snug">
                   {item.title}
                   {isVerified(item.id) && (
-                    <span className="ml-2 badge bg-sage text-ink align-middle" title="Verified by a teacher">
+                    <span className="ml-2 badge bg-sage text-ink align-middle" title="Verified by the college">
                       ✓ Verified
                     </span>
                   )}

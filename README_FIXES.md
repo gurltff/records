@@ -5,8 +5,9 @@ All demo accounts use the password `Demo@1234`. Click **Set up demo data** on th
 - Aarav Sharma — aarav.demo@example.com (student, starts as CR)
 - Priya Nair — priya.demo@example.com (student)
 - Rohan Verma — rohan.demo@example.com (student)
-- Dr. Mehta — mehta.demo@example.com (teacher)
-- Ms. Kapoor — kapoor.demo@example.com (teacher)
+- Dr. Mehta — mehta.demo@example.com (teacher, attendance only)
+- Ms. Kapoor — kapoor.demo@example.com (teacher, attendance only)
+- Dr. Meenakshi Sen — admin.demo@example.com (admin: student profiles console, or open /admin-demo)
 - Ananya Iyer — ananya.demo@example.com (student, graduated 2025)
 - Kavya Menon — kavya.demo@example.com (student, graduated 2024)
 

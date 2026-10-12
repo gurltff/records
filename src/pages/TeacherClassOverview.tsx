@@ -404,13 +404,6 @@ export default function TeacherClassOverview() {
           >
             Manage classes
           </Link>
-
-          <Link
-            to="/teacher/records"
-            className="btn-outline"
-          >
-            Student profiles
-          </Link>
         </div>
       </section>
 

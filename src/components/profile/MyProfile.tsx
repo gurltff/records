@@ -207,7 +207,7 @@ export default function MyProfile() {
           <Stat value={profile.achievements.length} label="Achievements" />
           <Stat value={profile.internships.length} label="Internships" />
           <Stat value={profile.exams.filter((e) => e.result === 'qualified').length} label="Exams cleared" />
-          <Stat value={`${verifiedCount}/${entries.length}`} label="Verified by teachers" />
+          <Stat value={`${verifiedCount}/${entries.length}`} label="Verified by the college" />
         </div>
         <div className="mt-4">
           <div className="flex justify-between text-xs text-ink-muted mb-1">

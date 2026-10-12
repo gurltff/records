@@ -23,10 +23,14 @@ export const DEMO_GRADUATE_SEEDS = [
   { name: 'Kavya Menon', email: 'kavya.demo@example.com', programme: 'B.Com (Hons)', graduationYear: '2024' },
 ]
 
+/* Records office: the only role that sees every student's profile. */
+export const DEMO_ADMIN_SEED = { name: 'Dr. Meenakshi Sen', email: 'admin.demo@example.com' }
+
 export const DEMO_LOGINS = [
   ...DEMO_STUDENT_SEEDS.map((x) => ({ ...x, role: 'student' as const })),
   ...DEMO_TEACHER_SEEDS.map((x) => ({ ...x, role: 'teacher' as const })),
   ...DEMO_GRADUATE_SEEDS.map((x) => ({ name: x.name, email: x.email, role: 'student' as const })),
+  { ...DEMO_ADMIN_SEED, role: 'admin' as const },
 ]
 
 /* One-line description shown under each demo login button. */
@@ -38,6 +42,7 @@ export const DEMO_LOGIN_NOTES: Record<string, string> = {
   'kavya.demo@example.com': 'graduated 2024',
   'mehta.demo@example.com': 'teacher',
   'kapoor.demo@example.com': 'teacher',
+  'admin.demo@example.com': 'records office',
 }
 
 export const DEMO_PROGRAM = 'B.Sc. (Hons) Physics'
@@ -69,7 +74,7 @@ function clearDemoCollections() {
 }
 
 /* Bump when the demo data's shape changes, so browsers holding old demo data re-run setup. */
-const DEMO_DATA_VERSION = '2'
+const DEMO_DATA_VERSION = '3'
 const DEMO_VERSION_KEY = 'sat_demo_version'
 
 export function hasDemoData() {
@@ -215,11 +220,15 @@ export async function setupDemoData(onProgress?: (message: string) => void) {
     graduates.push(account)
   }
 
+  progress('Creating the admin account…')
+  const admin = await ensureDemoAccount(DEMO_ADMIN_SEED.name, DEMO_ADMIN_SEED.email, DEMO_PASSWORD, 'admin')
+  await put('users', { ...admin, id: admin.uid })
+
   progress('Creating student profiles…')
   await seedRecords({
     students,
     graduates,
-    teacher: { ...mehta, role: 'teacher' },
+    admin: { ...admin, role: 'admin' },
     studyYear: DEMO_YEAR,
     studentProgramme: DEMO_PROGRAM,
   })

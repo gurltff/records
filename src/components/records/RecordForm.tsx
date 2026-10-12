@@ -35,7 +35,7 @@ import { EntryCard, Field, SectionCard, VerifiedBadge } from './RecordBits'
 
 /*
  * Each section of the profile is its own field group, so the profile page
- * can edit one section at a time and the teacher form can show them all.
+ * can edit one section at a time and the admin form can show them all.
  */
 export interface SectionProps {
   value: StudentRecord
@@ -665,7 +665,7 @@ export function ConsentFields({ value, set, mode }: SectionProps) {
 }
 
 /* =========================================================
-   FULL FORM (teachers: add / edit a whole profile)
+   FULL FORM (admin: add / edit a whole profile)
    ========================================================= */
 
 export default function RecordForm({

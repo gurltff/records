@@ -40,7 +40,7 @@ service cloud.firestore {
       allow read: if signedIn()
         && (
           request.auth.uid == uid
-          || myRole() in ['teacher', 'cr']
+          || myRole() in ['teacher', 'cr', 'admin']
         );
 
       /*
@@ -91,6 +91,15 @@ service cloud.firestore {
               'year',
               'graduationYear'
             ])
+        )
+        ||
+        // Admin marks a batch as graduated (a CR stops being CR).
+        (
+          myRole() == 'admin'
+          && resource.data.role in ['student', 'cr']
+          && request.resource.data.role == 'student'
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['role', 'graduationYear'])
         )
       );
 
@@ -157,6 +166,8 @@ service cloud.firestore {
               resource.data.studentId
             )
           )
+
+          || myRole() == 'admin'
         );
 
       /*
@@ -258,8 +269,10 @@ service cloud.firestore {
     // STUDENT PROFILES (one per student, kept after graduation)
     // =====================================================
 
-    function isTeacher() {
-      return signedIn() && myRole() == 'teacher';
+    // The records office. Admin accounts are assigned in the Firebase
+    // console (set role: "admin" on the user's document), never self-registered.
+    function isAdmin() {
+      return signedIn() && myRole() == 'admin';
     }
 
     function myEmail() {
@@ -279,7 +292,7 @@ service cloud.firestore {
       // an unclaimed record (needed to find and claim it on first login).
       allow read: if signedIn() && (
         resource.data.ownerUid == request.auth.uid
-        || isTeacher()
+        || isAdmin()
         || (
           request.auth.token.email_verified == true
           && (
@@ -290,7 +303,7 @@ service cloud.firestore {
       );
 
       allow create: if signedIn() && (
-        isTeacher()
+        isAdmin()
         || (
           myRole() in ['student', 'cr']
           && request.resource.data.ownerUid == request.auth.uid
@@ -298,7 +311,7 @@ service cloud.firestore {
       );
 
       allow update: if signedIn() && (
-        isTeacher()
+        isAdmin()
 
         // Owner edits their own record; ownership cannot be handed away.
         || (
@@ -321,13 +334,13 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isTeacher();
+      allow delete: if isAdmin();
     }
 
     // Proof documents (offer letters, certificates) — private.
     match /recordDocuments/{id} {
       allow read: if signedIn() && (
-        isTeacher()
+        isAdmin()
         || recordOwner(resource.data.recordId) == request.auth.uid
       );
 
@@ -337,14 +350,14 @@ service cloud.firestore {
           in ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
         && request.resource.data.dataUrl.size() < 1000000
         && (
-          isTeacher()
+          isAdmin()
           || recordOwner(request.resource.data.recordId) == request.auth.uid
         );
 
       allow update: if false;
 
       allow delete: if signedIn() && (
-        isTeacher()
+        isAdmin()
         || recordOwner(resource.data.recordId) == request.auth.uid
       );
     }
@@ -352,7 +365,7 @@ service cloud.firestore {
     // Append-only change history.
     match /recordUpdates/{id} {
       allow read: if signedIn() && (
-        isTeacher()
+        isAdmin()
         || recordOwner(resource.data.recordId) == request.auth.uid
       );
 
@@ -360,33 +373,33 @@ service cloud.firestore {
         && request.resource.data.actorId == request.auth.uid
         && request.resource.data.actorRole == myRole()
         && (
-          isTeacher()
+          isAdmin()
           || recordOwner(request.resource.data.recordId) == request.auth.uid
         );
 
       allow update, delete: if false;
     }
 
-    // Only teachers can verify. The stored fingerprint makes a
+    // Only admins can verify. The stored fingerprint makes a
     // verification lapse automatically when the student edits the entry.
     match /recordVerifications/{id} {
       allow read: if signedIn() && (
-        isTeacher()
+        isAdmin()
         || recordOwner(resource.data.recordId) == request.auth.uid
       );
 
-      allow create, update: if isTeacher()
+      allow create, update: if isAdmin()
         && request.resource.data.verifiedBy == request.auth.uid;
 
-      allow delete: if isTeacher();
+      allow delete: if isAdmin();
     }
 
-    // Update requests ("drives") sent by teachers.
+    // Update requests ("drives") sent by the admin.
     match /updateDrives/{id} {
       allow read: if signedIn();
-      allow create, update: if isTeacher()
+      allow create, update: if isAdmin()
         && request.resource.data.createdBy is string;
-      allow delete: if isTeacher();
+      allow delete: if isAdmin();
     }
 
     // Explore: opt-in public card of a profile, written by its owner.
@@ -394,9 +407,9 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if signedIn()
         && request.auth.uid == uid;
-      // Teachers can take a card down (e.g. when deleting a record).
+      // The admin can take a card down (e.g. when deleting a record).
       allow delete: if signedIn()
-        && (request.auth.uid == uid || isTeacher());
+        && (request.auth.uid == uid || isAdmin());
     }
 
     // DENY EVERYTHING ELSE

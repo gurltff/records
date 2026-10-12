@@ -70,7 +70,7 @@ export async function getRecord(id: string) {
 }
 
 /*
- * Finds the signed-in student's record. If a teacher digitised or imported
+ * Finds the signed-in student's record. If the admin digitised or imported
  * their paper form earlier, it is claimed here by matching email.
  */
 export async function findRecordForUser(user: UserProfile): Promise<StudentRecord | null> {
@@ -310,6 +310,11 @@ export async function unverifyItem(recordId: string, itemId: string, label: stri
 
 export async function listUpdates(recordId: string) {
   const items = await getWhere<RecordUpdate>(UPDATES, 'recordId', recordId)
+  return items.sort((a, b) => b.at - a.at)
+}
+
+export async function listAllUpdates() {
+  const items = await getAll<RecordUpdate>(UPDATES)
   return items.sort((a, b) => b.at - a.at)
 }
 

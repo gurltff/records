@@ -65,21 +65,15 @@ function entryMeta(entry: VerifiableEntry): string {
   }
 }
 
-function useAttendanceInMySubjects(teacher: UserProfile, record: StudentRecord) {
+/* Overall attendance for a current student (admins can read every subject). */
+function useAttendance(record: StudentRecord) {
   const [summary, setSummary] = useState<{ present: number; total: number } | null>(null)
-  // A string key: the demo AuthContext hands out a fresh user object every few seconds.
-  const subjectKey = (teacher.assignedCourseIds ?? []).join('|')
   useEffect(() => {
-    const keys = subjectKey ? subjectKey.split('|') : []
-    if (!record.ownerUid || record.status !== 'current' || keys.length === 0) return
-    // Queried per subject so it stays within what Firestore rules let a teacher read.
-    Promise.all(keys.map((key) => getWhere<AttendanceRecord>('attendanceRecords', 'courseKey', key)))
-      .then((lists) => {
-        const mine = lists.flat().filter((r) => r.studentId === record.ownerUid)
-        setSummary({ present: mine.filter((r) => r.status === 'present').length, total: mine.length })
-      })
+    if (!record.ownerUid || record.status !== 'current') return
+    getWhere<AttendanceRecord>('attendanceRecords', 'studentId', record.ownerUid)
+      .then((all) => setSummary({ present: all.filter((r) => r.status === 'present').length, total: all.length }))
       .catch(() => setSummary(null))
-  }, [subjectKey, record.ownerUid, record.status])
+  }, [record.ownerUid, record.status])
   return summary
 }
 
@@ -94,17 +88,17 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 export default function RecordDetail({
   record: initial,
-  teacher,
+  viewer,
   onClose,
   onChanged,
 }: {
   record: StudentRecord
-  teacher: UserProfile
+  viewer: UserProfile
   onClose: () => void
   onChanged: () => void
 }) {
   const { push } = useToast()
-  const actor = actorOf(teacher)
+  const actor = actorOf(viewer)
   const [record, setRecord] = useState(initial)
   const [draft, setDraft] = useState<StudentRecord | null>(null)
   const [documents, setDocuments] = useState<RecordDocument[]>([])
@@ -112,7 +106,7 @@ export default function RecordDetail({
   const [updates, setUpdates] = useState<RecordUpdate[]>([])
   const [openDoc, setOpenDoc] = useState<RecordDocument | null>(null)
   const [busy, setBusy] = useState(false)
-  const attendance = useAttendanceInMySubjects(teacher, record)
+  const attendance = useAttendance(record)
 
   const reload = useCallback(async () => {
     const [docs, verifs, history] = await Promise.all([
@@ -184,8 +178,8 @@ export default function RecordDetail({
       graduationYear: '',
       recordId: record.id,
       dueDate: due,
-      createdBy: teacher.uid,
-      createdByName: teacher.name,
+      createdBy: viewer.uid,
+      createdByName: viewer.name,
       createdAt: Date.now(),
       isActive: true,
     })
@@ -246,7 +240,7 @@ export default function RecordDetail({
             </p>
             <p className="text-xs text-ink-muted mt-1">
               {record.ownerUid ? '🔗 Linked to a student account' : 'Not signed up yet — record is claimed automatically when they register with this email.'}
-              {' · '}Source: {record.source === 'self' ? 'self-reported' : record.source === 'import' ? 'spreadsheet import' : 'digitised by teacher'}
+              {' · '}Source: {record.source === 'self' ? 'self-reported' : record.source === 'import' ? 'spreadsheet import' : 'digitised from a paper form'}
             </p>
           </div>
           <div className="w-full sm:w-56 space-y-1.5">
@@ -324,8 +318,8 @@ export default function RecordDetail({
               {attendance && (
                 <Row label="Attendance">
                   {attendance.total === 0
-                    ? 'No classes recorded in your subjects'
-                    : `${Math.round((attendance.present / attendance.total) * 100)}% in your subjects (${attendance.present}/${attendance.total} classes)`}
+                    ? 'No classes recorded yet'
+                    : `${Math.round((attendance.present / attendance.total) * 100)}% overall (${attendance.present}/${attendance.total} classes)`}
                 </Row>
               )}
             </SectionCard>

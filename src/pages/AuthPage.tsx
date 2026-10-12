@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
+  isLocalAuth,
   logIn,
   logInDemo,
   resendVerificationEmail,
@@ -181,6 +182,13 @@ export default function AuthPage() {
     if (mode !== 'login') {
       setResetMessage(
         'Switch to Log in to reset your password.'
+      )
+      return
+    }
+
+    if (isLocalAuth()) {
+      setResetMessage(
+        'Accounts in this prototype are saved in this browser, so there is no reset email. Use a demo account or sign up again.'
       )
       return
     }
@@ -445,8 +453,7 @@ export default function AuthPage() {
         }
       )
     } catch (error: any) {
-      console.error(error)
-
+      // Expected sign-in problems (wrong password, missing fields) are shown as a toast only.
       let message =
         error?.message ??
         'Something went wrong.'
@@ -654,6 +661,24 @@ export default function AuthPage() {
                       type="button"
                       disabled={busy}
                       className="btn-outline w-full mb-1 text-sm"
+                      onClick={() => handleDemoLogin(item.email)}
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+
+                <div className="text-xs font-semibold text-ink/50 mb-1 mt-3">
+                  ADMIN · STUDENT RECORDS
+                </div>
+
+                {DEMO_LOGINS
+                  .filter((item) => item.role === 'admin')
+                  .map((item) => (
+                    <button
+                      key={item.email}
+                      type="button"
+                      disabled={busy}
+                      className="btn-primary w-full mb-1 text-sm"
                       onClick={() => handleDemoLogin(item.email)}
                     >
                       {item.name}

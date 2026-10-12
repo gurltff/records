@@ -13,7 +13,8 @@ import PrintRecord from './pages/PrintRecord'
 import StudentDashboard from './pages/StudentDashboard'
 import TeacherDashboard from './pages/TeacherDashboard'
 import TeacherClassOverview from './pages/TeacherClassOverview'
-import TeacherRecords from './pages/TeacherRecords'
+import AdminDashboard from './pages/AdminDashboard'
+import AdminDemo from './pages/AdminDemo'
 import TimetablePage from './pages/TimetablePage'
 
 export default function App() {
@@ -65,14 +66,26 @@ export default function App() {
             }
           />
 
-          {/* TEACHER - STUDENT PROFILES */}
+          {/* Student profiles moved from teachers to the admin console. */}
           <Route
             path="/teacher/records"
+            element={<Navigate to="/teacher" replace />}
+          />
+
+          {/* ADMIN CONSOLE */}
+          <Route
+            path="/admin"
             element={
-              <ProtectedRoute role="teacher">
-                <TeacherRecords />
+              <ProtectedRoute role="admin">
+                <AdminDashboard />
               </ProtectedRoute>
             }
+          />
+
+          {/* One-click demo: sets up demo data and opens the admin console. */}
+          <Route
+            path="/admin-demo"
+            element={<AdminDemo />}
           />
 
           {/* Old link from the alumni-login version: graduates use /student. */}

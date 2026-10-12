@@ -2,6 +2,8 @@ export type Role =
   | 'student'
   | 'teacher'
   | 'cr'
+  /* Records office / IQAC: sees every student's profile. Assigned, never self-registered. */
+  | 'admin'
 
 export interface UserProfile {
   uid: string

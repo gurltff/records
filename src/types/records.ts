@@ -144,7 +144,7 @@ export interface StudentRecord {
 
   /*
    * uid of the student/alumni account that owns this record.
-   * null for records a teacher digitised or imported before the
+   * null for records the admin digitised or imported before the
    * student signed up — they are claimed automatically on sign-up
    * when the college or personal email matches.
    */
@@ -229,7 +229,7 @@ export type VerifiableKind =
 /*
  * Teacher verification of one entry. It stores a fingerprint of the
  * entry's content, so any later edit by the student automatically
- * makes the entry "unverified" again. Only teachers can write these.
+ * makes the entry "unverified" again. Only admins can write these.
  */
 export interface RecordVerification {
   id: string

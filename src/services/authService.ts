@@ -93,6 +93,15 @@ export function isDemoMode() {
   return localStorage.getItem(DEMO_MODE_KEY) === '1'
 }
 
+/*
+ * Accounts live in this browser when demo mode is on, or when no Firebase
+ * project is configured (the prototype deployment). Sign-up and log-in then
+ * work locally instead of failing with "Firebase is not configured".
+ */
+export function isLocalAuth() {
+  return isDemoMode() || !isFirebaseConfigured
+}
+
 export function getLocalCurrentUid() {
   return localStorage.getItem(LOCAL_AUTH_KEY)
 }
@@ -175,7 +184,7 @@ export function notifyLocalAuthChanged() {
 }
 
 function validateRole(role: Role) {
-  if (!['student', 'teacher', 'cr'].includes(role)) {
+  if (!['student', 'teacher', 'cr', 'admin'].includes(role)) {
     throw new Error('Invalid user role.')
   }
 }
@@ -200,6 +209,12 @@ export async function signUp(
     )
   }
 
+  if (role === 'admin') {
+    throw new Error(
+      'Admin accounts are set up by the college, not through sign-up.'
+    )
+  }
+
   const cleanName = name.trim()
   const cleanEmail = email.trim().toLowerCase()
 
@@ -217,7 +232,7 @@ export async function signUp(
     )
   }
 
-  if (isDemoMode()) {
+  if (isLocalAuth()) {
     const users = getLocalUsers()
 
     if (
@@ -262,10 +277,11 @@ export async function signUp(
 
     saveLocalUsers(users)
 
-    if (isDemoMode()) {
-      setLocalCurrentUid(uid)
-      notifyLocalAuthChanged()
-    }
+    // Also list the account with everyone else's, so teachers see new students.
+    await put<UserProfile & { id: string }>('users', { ...profile, id: uid })
+
+    setLocalCurrentUid(uid)
+    notifyLocalAuthChanged()
 
     return profile
   }
@@ -354,7 +370,7 @@ export async function logIn(
     )
   }
 
-  if (isDemoMode()) {
+  if (isLocalAuth()) {
     const entry = Object.values(
       getLocalUsers()
     ).find(
@@ -367,7 +383,7 @@ export async function logIn(
       entry.password !== password
     ) {
       throw new Error(
-        'Invalid demo email or password.'
+        'Incorrect email or password.'
       )
     }
 
@@ -505,15 +521,9 @@ export async function resetPassword(
     )
   }
 
-  if (isDemoMode()) {
+  if (isLocalAuth()) {
     throw new Error(
-      'Password reset is not available for Demo Mode. Use a real Firebase account.'
-    )
-  }
-
-  if (!isFirebaseConfigured) {
-    throw new Error(
-      'Firebase is not configured.'
+      'Accounts in this prototype are saved in this browser, so there is no reset email. Use a demo account or sign up again.'
     )
   }
 
@@ -562,15 +572,8 @@ export function watchAuthState(
   callback: (uid: string | null) => void
 ): () => void {
   const localHandler = () => {
-    if (
-      isDemoMode() ||
-      !isFirebaseConfigured
-    ) {
-      callback(
-        isDemoMode()
-          ? getLocalCurrentUid()
-          : null
-      )
+    if (isLocalAuth()) {
+      callback(getLocalCurrentUid())
     }
   }
 
@@ -580,11 +583,7 @@ export function watchAuthState(
   )
 
   if (!isFirebaseConfigured || !auth) {
-    callback(
-      isDemoMode()
-        ? getLocalCurrentUid()
-        : null
-    )
+    callback(getLocalCurrentUid())
 
     return () =>
       window.removeEventListener(
@@ -667,7 +666,7 @@ export async function ensureDemoAccount(
   name: string,
   email: string,
   password: string,
-  role: 'student' | 'teacher',
+  role: 'student' | 'teacher' | 'admin',
   options?: {
     enrolledCourseIds?: string[]
     assignedCourseIds?: string[]

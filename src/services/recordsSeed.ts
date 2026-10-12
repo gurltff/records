@@ -131,7 +131,10 @@ function makeJob(year: number, template = pick(JOBS)): Employment {
 
 function makeAchievement(year: number): Achievement {
   const [title, area, level] = pick(ACHIEVEMENTS)
-  return { ...emptyAchievement(), title, area, level, date: `${year}-02-15` }
+  // February of that session's spring term — or earlier if that is still in the future.
+  const today = new Date().toISOString().slice(0, 10)
+  const candidates = [`${year}-02-15`, `${year - 1}-11-20`, `${year - 1}-09-10`]
+  return { ...emptyAchievement(), title, area, level, date: candidates.find((d) => d <= today) ?? candidates[2] }
 }
 
 const ACTIVITIES: [string, Activity['kind'], string][] = [
@@ -184,12 +187,14 @@ interface SeedInput {
   students: UserProfile[]
   /* Demo logins of students who have already graduated (same student role). */
   graduates: UserProfile[]
-  teacher: UserProfile
+  /* Verifies entries and sends update requests. */
+  admin: UserProfile
   studyYear: string
   studentProgramme: string
 }
 
-export async function seedRecords({ students, graduates, teacher, studyYear, studentProgramme }: SeedInput) {
+export async function seedRecords({ students, graduates, admin, studyYear, studentProgramme }: SeedInput) {
+  const teacher = admin
   rand = mulberry32(2026)
   const now = Date.now()
   const session = academicYearOf(new Date())
@@ -202,13 +207,13 @@ export async function seedRecords({ students, graduates, teacher, studyYear, stu
   const nextRoll = (admission: number) => `${String(admission).slice(2)}99000${String(roll++).padStart(3, '0')}`
 
   const logEntry = (record: StudentRecord, action: RecordUpdate['action'], summary: string, at: number, actor?: UserProfile) => {
-    const byTeacher = actor?.role === 'teacher' || (!actor && !record.ownerUid)
+    const byStaff = actor?.role === 'admin' || (!actor && !record.ownerUid)
     updates.push({
       id: `demo_upd_${updates.length}`,
       recordId: record.id,
-      actorId: actor?.uid ?? (byTeacher ? teacher.uid : record.ownerUid!),
-      actorName: actor?.name ?? (byTeacher ? teacher.name : record.name),
-      actorRole: byTeacher ? 'teacher' : 'student',
+      actorId: actor?.uid ?? (byStaff ? admin.uid : record.ownerUid!),
+      actorName: actor?.name ?? (byStaff ? admin.name : record.name),
+      actorRole: byStaff ? 'admin' : 'student',
       action,
       summary,
       at,
@@ -483,7 +488,7 @@ export async function seedRecords({ students, graduates, teacher, studyYear, stu
     else logEntry(record, 'imported', record.source === 'import' ? 'Imported from alumni spreadsheet' : 'Digitised from paper Alumni Database form', createdAt)
     if (touched > createdAt) logEntry(record, 'updated', isCurrent ? 'Updated Doing now, Achievements & interests' : 'Updated Job, Higher studies', touched)
 
-    // Teachers have already checked some entries against the paper files.
+    // The admin has already checked some entries against the paper files.
     const first = record.employment[0] ?? record.higherStudies[0] ?? record.internships[0]
     if (first && rand() > 0.5) {
       const kind = record.employment[0] ? 'employment' : record.higherStudies[0] ? 'higherStudy' : 'internship'

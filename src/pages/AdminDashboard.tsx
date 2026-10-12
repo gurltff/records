@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Modal, useToast } from '../components/Shared'
 import RecordDetail from '../components/records/RecordDetail'
@@ -20,6 +20,7 @@ import {
   graduateBatch,
   importRecords,
   listAllDocuments,
+  listAllUpdates,
   listAllVerifications,
   listDrives,
   listRecords,
@@ -30,9 +31,11 @@ import {
 import type {
   DriveAudience,
   RecordDocument,
+  RecordUpdate,
   RecordVerification,
   StudentRecord,
   UpdateDrive,
+  UserProfile,
 } from '../types'
 import { batchSummaryCsv, csvToRecords, downloadCsv, recordTemplateCsv, recordsToCsv } from '../utils/csv'
 import {
@@ -54,6 +57,7 @@ import {
   newId,
   packageOf,
   primaryOutcome,
+  relativeDays,
   studyYearOf,
   doingNow,
   topCounts,
@@ -119,14 +123,47 @@ function matchesSearch(record: StudentRecord, query: string) {
     .includes(q)
 }
 
-export default function TeacherRecords() {
+type View = 'overview' | 'students' | 'verify' | 'requests' | 'reports' | 'data'
+
+const VIEWS: { id: View; icon: string; label: string }[] = [
+  { id: 'overview', icon: '🏠', label: 'Overview' },
+  { id: 'students', icon: '🎓', label: 'Students' },
+  { id: 'verify', icon: '✔', label: 'Verification' },
+  { id: 'requests', icon: '📣', label: 'Update requests' },
+  { id: 'reports', icon: '📊', label: 'Reports' },
+  { id: 'data', icon: '🗂', label: 'Data & import' },
+]
+
+function greeting(date = new Date()) {
+  const h = date.getHours()
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+}
+
+/* "Dr. Meenakshi Sen" → "Meenakshi" */
+function firstName(name: string) {
+  const parts = name.split(/\s+/).filter((p) => !/^(dr|ms|mrs|mr|prof)\.?$/i.test(p))
+  return parts[0] ?? name
+}
+
+/*
+ * The admin console: everything about students' profiles lives here, not
+ * with teachers. Sidebar navigation on desktop, a scrollable row on phones.
+ */
+export default function AdminDashboard() {
   const { user } = useAuth()
   const { push } = useToast()
-  const [tab, setTab] = useState<Tab>('records')
+  const [params, setParams] = useSearchParams()
+  const view = (VIEWS.find((v) => v.id === params.get('view'))?.id ?? 'overview') as View
+  const go = (next: View) => {
+    setParams(next === 'overview' ? {} : { view: next })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const [records, setRecords] = useState<StudentRecord[]>([])
   const [verifications, setVerifications] = useState<RecordVerification[]>([])
   const [documents, setDocuments] = useState<RecordDocument[]>([])
   const [drives, setDrives] = useState<UpdateDrive[]>([])
+  const [updates, setUpdates] = useState<RecordUpdate[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -135,23 +172,25 @@ export default function TeacherRecords() {
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
-    const [allRecords, allVerifications, allDocuments, allDrives] = await Promise.all([
+    const [allRecords, allVerifications, allDocuments, allDrives, allUpdates] = await Promise.all([
       listRecords(),
       listAllVerifications(),
       listAllDocuments(),
       listDrives(),
+      listAllUpdates(),
     ])
     setRecords(allRecords)
     setVerifications(allVerifications)
     setDocuments(allDocuments)
     setDrives(allDrives)
+    setUpdates(allUpdates)
   }, [])
 
   useEffect(() => {
     load()
       .catch((error) => {
         console.error(error)
-        push('Could not load records.', 'error')
+        push('Could not load student profiles.', 'error')
       })
       .finally(() => setLoading(false))
   }, [load, push])
@@ -206,12 +245,8 @@ export default function TeacherRecords() {
 
   if (!user) return null
   const actor = actorOf(user)
-
-  const alumniCount = records.filter((r) => r.status === 'alumni').length
-  const byYear = (key: string) => records.filter((r) => yearKey(r) === key).length
-  const needUpdate = records.filter((r) => freshness(r) !== 'fresh').length
-  const linked = records.filter((r) => r.ownerUid).length
   const selected = records.find((r) => r.id === selectedId) ?? null
+  const openRequests = drives.filter((d) => d.isActive).length
 
   /* ---------- actions ---------- */
 
@@ -251,16 +286,16 @@ export default function TeacherRecords() {
       return
     }
     const duplicate = adding.rollNo && records.find((r) => r.rollNo === adding.rollNo.trim())
-    if (duplicate && !window.confirm(`A record with roll no. ${adding.rollNo} already exists (${duplicate.name}). Add anyway?`)) return
+    if (duplicate && !window.confirm(`A profile with roll no. ${adding.rollNo} already exists (${duplicate.name}). Add anyway?`)) return
     setBusy(true)
     try {
       await saveRecord({ ...adding, rollNo: adding.rollNo.trim() }, null, actor)
       setAdding(null)
       await load()
-      push('Record added.', 'success')
+      push('Profile added.', 'success')
     } catch (error) {
       console.error(error)
-      push('Could not add the record.', 'error')
+      push('Could not add the profile.', 'error')
     } finally {
       setBusy(false)
     }
@@ -276,114 +311,145 @@ export default function TeacherRecords() {
     }
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'records', label: `Profiles (${records.length})` },
-    { id: 'verify', label: `Verification queue (${unverified.length})` },
-    { id: 'drives', label: 'Update requests' },
-    { id: 'insights', label: 'Batch outcomes' },
-  ]
+  const counts: Partial<Record<View, number>> = {
+    students: records.length,
+    verify: unverified.length,
+    requests: openRequests,
+  }
+
+  const graduationBanners = graduationDue.map(([year, count]) => (
+    <div key={year} className="card-tint tint-butter flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm">
+        🎓 <b>{count} student{count === 1 ? '' : 's'} from batch {year}</b> {count === 1 ? 'has' : 'have'} finished the final year but{' '}
+        {count === 1 ? "isn't" : "aren't"} marked as graduated yet.
+      </p>
+      <button type="button" className="btn-primary text-sm" disabled={busy} onClick={() => handleGraduate(year)}>
+        Mark batch {year} as graduated
+      </button>
+    </div>
+  ))
 
   return (
     <main className="page-shell">
-      <section className="page-header">
-        <div>
-          <p className="eyebrow">Teacher workspace</p>
-          <h1 className="page-title">Student profiles</h1>
-          <p className="page-subtitle max-w-2xl">
-            Every student's profile, from first year to after graduation — what they're doing, their achievements, and
-            the details from the paper Alumni Database form. Students keep it updated; you verify it and report on it.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/teacher" className="btn-outline">
-            ← Teacher dashboard
-          </Link>
-          <button type="button" className="btn-outline" onClick={() => setImporting(true)}>
-            ⬆ Import CSV
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setAdding(emptyRecord({ source: 'teacher', status: 'alumni' }))}
-          >
-            + Add from paper form
-          </button>
-        </div>
-      </section>
-
-      {loading ? (
-        <div className="card">Loading records…</div>
-      ) : (
-        <>
-          <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatTile
-              tint={TINTS[3]}
-              label="Student profiles"
-              value={records.length}
-              note={`1st ${byYear('1')} · 2nd ${byYear('2')} · 3rd ${byYear('3')} · graduated ${alumniCount}`}
-            />
-            <StatTile tint={TINTS[1]} label="Need an update" value={needUpdate} note="Not updated or confirmed in 6+ months" />
-            <StatTile
-              tint={TINTS[0]}
-              label="Awaiting verification"
-              value={unverified.length}
-              note={`${unverified.filter((u) => u.proofs.length > 0).length} already have a proof document — start there`}
-            />
-            <StatTile tint={TINTS[2]} label="Signed up" value={`${pct(linked, records.length)}%`} note={`${linked} of ${records.length} records linked to an account`} />
-          </section>
-
-          {graduationDue.map(([year, count]) => (
-            <div key={year} className="card-tint tint-butter mb-6 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm">
-                🎓 <b>{count} student{count === 1 ? '' : 's'} from batch {year}</b> {count === 1 ? 'has' : 'have'} finished the final year but {count === 1 ? "isn't" : "aren't"} marked as graduated yet.
-              </p>
-              <button type="button" className="btn-primary text-sm" disabled={busy} onClick={() => handleGraduate(year)}>
-                Mark batch {year} as graduated
-              </button>
-            </div>
-          ))}
-
-          <div className="card mb-6 overflow-x-auto">
-            <div className="flex gap-2 min-w-max">
-              {tabs.map((t) => (
-                <button key={t.id} type="button" onClick={() => setTab(t.id)} className={tab === t.id ? 'btn-primary' : 'btn-outline'}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[230px_minmax(0,1fr)] gap-6 items-start">
+        {/* SIDEBAR */}
+        <aside className="card p-3 lg:sticky lg:top-24 min-w-0">
+          <div className="hidden lg:block px-2 pt-1 pb-3 mb-2 border-b border-line dark:border-cream-soft/15">
+            <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Admin console</p>
+            <p className="font-extrabold leading-tight mt-0.5">Student records office</p>
           </div>
+          <nav aria-label="Admin sections" className="flex lg:flex-col gap-1 overflow-x-auto">
+            {VIEWS.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                aria-current={view === v.id ? 'page' : undefined}
+                onClick={() => go(v.id)}
+                className={`flex items-center gap-2.5 rounded-2xl px-3 py-2 text-sm font-semibold whitespace-nowrap text-left transition-colors ${
+                  view === v.id ? 'bg-ink text-cream-soft dark:bg-cream-soft dark:text-ink' : 'hover:bg-ink/5 dark:hover:bg-cream-soft/10'
+                }`}
+              >
+                <span aria-hidden="true" className="w-5 text-center">{v.icon}</span>
+                <span className="flex-1">{v.label}</span>
+                {counts[v.id] !== undefined && (
+                  <span className={`text-xs tabular-nums rounded-full px-2 py-0.5 ${view === v.id ? 'bg-cream-soft/20' : 'bg-chip dark:bg-cream-soft/10'}`}>
+                    {counts[v.id]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+          <p className="hidden lg:block text-xs text-ink-muted px-2 pt-3 mt-2 border-t border-line dark:border-cream-soft/15">
+            Signed in as {user.name}
+          </p>
+        </aside>
 
-          {tab === 'records' && (
-            <RecordsTab
-              filters={filters}
-              setFilters={setFilters}
-              programmes={programmes}
-              batches={batches}
-              filtered={filtered}
-              total={records.length}
-              documents={documents}
-              onOpen={setSelectedId}
-            />
+        {/* CONTENT */}
+        <div className="min-w-0 space-y-6">
+          {loading ? (
+            <div className="card">Loading student profiles…</div>
+          ) : (
+            <>
+              {view === 'overview' && (
+                <OverviewView
+                  user={user}
+                  records={records}
+                  drives={drives}
+                  updates={updates}
+                  unverified={unverified}
+                  graduationBanners={graduationBanners}
+                  onGo={go}
+                  onOpen={setSelectedId}
+                  onFilter={(patch) => {
+                    setFilters({ ...NO_FILTERS, ...patch })
+                    go('students')
+                  }}
+                />
+              )}
+
+              {view === 'students' && (
+                <>
+                  <ViewHeader
+                    title="Students"
+                    subtitle="Every student's profile, from first year to after graduation. Click a row to open, verify or edit it."
+                    actions={
+                      <button type="button" className="btn-primary" onClick={() => setAdding(emptyRecord({ source: 'teacher', status: 'alumni' }))}>
+                        + Add from paper form
+                      </button>
+                    }
+                  />
+                  {graduationBanners}
+                  <RecordsTab
+                    filters={filters}
+                    setFilters={setFilters}
+                    programmes={programmes}
+                    batches={batches}
+                    filtered={filtered}
+                    total={records.length}
+                    documents={documents}
+                    onOpen={setSelectedId}
+                  />
+                </>
+              )}
+
+              {view === 'verify' && (
+                <>
+                  <ViewHeader title="Verification" subtitle="Check entries against offer letters, admission letters and certificates." />
+                  <VerifyTab rows={unverified} onOpen={setSelectedId} onVerify={quickVerify} />
+                </>
+              )}
+
+              {view === 'requests' && (
+                <>
+                  <ViewHeader title="Update requests" subtitle="Ask a group of students to review their profiles, and see who has responded." />
+                  <DrivesTab drives={drives} records={records} programmes={programmes} batches={batches} onCreated={load} teacherName={user.name} teacherId={user.uid} />
+                </>
+              )}
+
+              {view === 'reports' && (
+                <>
+                  <ViewHeader title="Reports" subtitle="Graduation outcomes by batch, where graduates went, exams cleared and areas students excel in." />
+                  <InsightsTab records={records} programmes={programmes} />
+                </>
+              )}
+
+              {view === 'data' && (
+                <>
+                  <ViewHeader title="Data & import" subtitle="Bring in existing records and take data out for reports." />
+                  <DataView
+                    records={records}
+                    onAdd={() => setAdding(emptyRecord({ source: 'teacher', status: 'alumni' }))}
+                    onImport={() => setImporting(true)}
+                  />
+                </>
+              )}
+            </>
           )}
-
-          {tab === 'verify' && <VerifyTab rows={unverified} onOpen={setSelectedId} onVerify={quickVerify} />}
-
-          {tab === 'drives' && (
-            <DrivesTab drives={drives} records={records} programmes={programmes} batches={batches} onCreated={load} teacherName={user.name} teacherId={user.uid} />
-          )}
-
-          {tab === 'insights' && <InsightsTab records={records} programmes={programmes} />}
-        </>
-      )}
+        </div>
+      </div>
 
       {selected && (
-        <RecordDetail
-          key={selected.id}
-          record={selected}
-          teacher={user}
-          onClose={() => setSelectedId(null)}
-          onChanged={() => load()}
-        />
+        <RecordDetail key={selected.id} record={selected} viewer={user} onClose={() => setSelectedId(null)} onChanged={() => load()} />
       )}
 
       {adding && (
@@ -394,7 +460,7 @@ export default function TeacherRecords() {
               Cancel
             </button>
             <button type="button" className="btn-primary text-sm" disabled={busy} onClick={handleAddSave}>
-              {busy ? 'Saving…' : 'Save record'}
+              {busy ? 'Saving…' : 'Save profile'}
             </button>
           </div>
         </Modal>
@@ -411,6 +477,239 @@ export default function TeacherRecords() {
         />
       )}
     </main>
+  )
+}
+
+function ViewHeader({ title, subtitle, actions }: { title: string; subtitle: string; actions?: ReactNode }) {
+  return (
+    <section className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p className="eyebrow">Admin console</p>
+        <h1 className="page-title">{title}</h1>
+        <p className="page-subtitle max-w-2xl">{subtitle}</p>
+      </div>
+      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+    </section>
+  )
+}
+
+/* =========================================================
+   OVERVIEW
+   ========================================================= */
+
+function OverviewView({
+  user,
+  records,
+  drives,
+  updates,
+  unverified,
+  graduationBanners,
+  onGo,
+  onOpen,
+  onFilter,
+}: {
+  user: UserProfile
+  records: StudentRecord[]
+  drives: UpdateDrive[]
+  updates: RecordUpdate[]
+  unverified: { proofs: RecordDocument[] }[]
+  graduationBanners: ReactNode[]
+  onGo: (view: View) => void
+  onOpen: (id: string) => void
+  onFilter: (patch: Partial<Filters>) => void
+}) {
+  const current = records.filter((r) => studyYearOf(r).index > 0)
+  const graduated = records.length - current.length
+  const fresh = records.filter((r) => freshness(r) === 'fresh').length
+  const stale = records.filter((r) => freshness(r) === 'stale').length
+  const linked = records.filter((r) => r.ownerUid).length
+  const withProof = unverified.filter((u) => u.proofs.length > 0).length
+  const incomplete = records.filter((r) => r.ownerUid && completeness(r).percent < 60).length
+  const byYear = (key: string) => records.filter((r) => yearKey(r) === key).length
+  const nameOf = new Map(records.map((r) => [r.id, r]))
+
+  const openDrives = drives
+    .filter((d) => d.isActive)
+    .map((d) => ({ drive: d, progress: driveProgress(d, records) }))
+    .filter((d) => d.progress.pending.length > 0)
+
+  const recentAchievements = records
+    .flatMap((r) => r.achievements.filter((a) => a.title && a.date && a.date <= today()).map((a) => ({ a, r })))
+    .sort((x, y) => y.a.date.localeCompare(x.a.date))
+    .slice(0, 6)
+
+  const activity = updates.filter((u) => nameOf.has(u.recordId)).slice(0, 8)
+
+  const attention: { text: ReactNode; action: string; onClick: () => void }[] = [
+    ...openDrives.map(({ drive, progress }) => ({
+      text: (
+        <>
+          <b>{progress.pending.length}</b> haven't answered “{drive.title}”
+          {drive.dueDate && drive.dueDate < today() ? ' — overdue' : drive.dueDate ? ` · due ${formatDate(drive.dueDate)}` : ''}
+        </>
+      ),
+      action: 'View',
+      onClick: () => onGo('requests'),
+    })),
+    ...(withProof
+      ? [{ text: <><b>{withProof}</b> entries have a proof document waiting to be verified</>, action: 'Verify', onClick: () => onGo('verify') }]
+      : []),
+    ...(stale
+      ? [{ text: <><b>{stale}</b> profiles haven't been updated in over a year</>, action: 'See them', onClick: () => onFilter({ freshness: 'stale' }) }]
+      : []),
+    ...(incomplete
+      ? [{ text: <><b>{incomplete}</b> signed-up students have profiles under 60% complete</>, action: 'See them', onClick: () => onFilter({}) }]
+      : []),
+  ]
+
+  return (
+    <>
+      <section>
+        <p className="eyebrow">Admin console · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        <h1 className="page-title">
+          {greeting()}, {firstName(user.name)}
+        </h1>
+        <p className="page-subtitle">Here's where student profiles stand today.</p>
+      </section>
+
+      <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatTile tint="" label="Students" value={records.length} note={`1st ${byYear('1')} · 2nd ${byYear('2')} · 3rd ${byYear('3')} · graduated ${graduated}`} />
+        <StatTile tint="" label="Profiles up to date" value={`${pct(fresh, records.length)}%`} note={`${fresh} updated or confirmed in the last 6 months`} />
+        <StatTile tint="" label="Awaiting verification" value={unverified.length} note={`${withProof} with a proof document`} />
+        <StatTile tint="" label="Signed up" value={`${pct(linked, records.length)}%`} note={`${linked} of ${records.length} profiles linked to a login`} />
+      </section>
+
+      {graduationBanners}
+
+      <section className="grid xl:grid-cols-[1.15fr_0.85fr] gap-6 items-start">
+        <div className="card">
+          <h2 className="font-extrabold text-lg mb-3">Needs attention</h2>
+          {attention.length === 0 ? (
+            <p className="text-sm text-ink-muted">All caught up. 🎉</p>
+          ) : (
+            <ul className="divide-y divide-line dark:divide-cream-soft/10">
+              {attention.map((item, i) => (
+                <li key={i} className="py-3 flex items-center justify-between gap-3">
+                  <span className="text-sm">{item.text}</span>
+                  <button type="button" className="btn-outline text-xs shrink-0" onClick={item.onClick}>
+                    {item.action}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-extrabold text-lg">Recent activity</h2>
+            <span className="text-xs text-ink-muted">{updates.length} changes logged</span>
+          </div>
+          {activity.length === 0 ? (
+            <p className="text-sm text-ink-muted">No changes yet.</p>
+          ) : (
+            <ul className="space-y-2.5">
+              {activity.map((u) => (
+                <li key={u.id} className="text-sm">
+                  <button type="button" className="font-semibold underline-offset-2 hover:underline" onClick={() => onOpen(u.recordId)}>
+                    {nameOf.get(u.recordId)!.name}
+                  </button>
+                  <span className="text-ink-muted"> · {u.summary}</span>
+                  <span className="block text-xs text-ink-muted">
+                    {u.actorName === nameOf.get(u.recordId)!.name ? 'by the student' : `by ${u.actorName}`} · {relativeDays(u.at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <YearActivityPanel records={records} />
+
+      <section className="card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-extrabold text-lg">Recent achievements</h2>
+          <button type="button" className="btn-outline text-xs" onClick={() => onGo('reports')}>
+            Reports →
+          </button>
+        </div>
+        {recentAchievements.length === 0 ? (
+          <p className="text-sm text-ink-muted">No achievements added yet.</p>
+        ) : (
+          <ul className="grid sm:grid-cols-2 gap-3">
+            {recentAchievements.map(({ a, r }) => (
+              <li key={a.id}>
+                <button type="button" onClick={() => onOpen(r.id)} className="w-full text-left rounded-2xl border border-line dark:border-cream-soft/20 p-3 hover:bg-ink/5">
+                  <p className="font-semibold">🏆 {a.title}</p>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    {r.name} · {studyYearOf(r).short} · {a.area} · {formatDate(a.date)}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  )
+}
+
+/* =========================================================
+   DATA & IMPORT
+   ========================================================= */
+
+function DataView({ records, onAdd, onImport }: { records: StudentRecord[]; onAdd: () => void; onImport: () => void }) {
+  const tiles: { icon: string; title: string; body: string; action: string; onClick: () => void }[] = [
+    {
+      icon: '📝',
+      title: 'Add from a paper form',
+      body: 'Type in an old Alumni Database form. It links to the student automatically if they sign up with the same email.',
+      action: '+ Add profile',
+      onClick: onAdd,
+    },
+    {
+      icon: '⬆',
+      title: 'Import a spreadsheet',
+      body: 'Upload a CSV of existing alumni data. Columns follow the paper form; duplicates are skipped.',
+      action: 'Import CSV',
+      onClick: onImport,
+    },
+    {
+      icon: '📄',
+      title: 'Download the template',
+      body: 'The CSV columns to use for importing, with one sample row.',
+      action: 'Download template',
+      onClick: () => downloadCsv('student-profiles-template.csv', recordTemplateCsv()),
+    },
+    {
+      icon: '⬇',
+      title: 'Export all profiles',
+      body: `All ${records.length} profiles in the paper-form column order, ready for Excel or Google Sheets.`,
+      action: 'Export CSV',
+      onClick: () => downloadCsv(`maitreyi-student-profiles-${today()}.csv`, recordsToCsv(records)),
+    },
+    {
+      icon: '📊',
+      title: 'NIRF batch summary',
+      body: 'Graduates per batch, higher studies, placements, median package, internships and exams cleared.',
+      action: 'Export summary',
+      onClick: () => downloadCsv(`batch-outcomes-${today()}.csv`, batchSummaryCsv(records)),
+    },
+  ]
+  return (
+    <section className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      {tiles.map((t) => (
+        <article key={t.title} className="card flex flex-col">
+          <p className="text-2xl" aria-hidden="true">{t.icon}</p>
+          <h2 className="font-extrabold mt-2">{t.title}</h2>
+          <p className="text-sm text-ink-muted mt-1 flex-1">{t.body}</p>
+          <button type="button" className="btn-outline text-sm mt-4 self-start" onClick={t.onClick}>
+            {t.action}
+          </button>
+        </article>
+      ))}
+    </section>
   )
 }
 
@@ -933,19 +1232,6 @@ function InsightsTab({ records, programmes }: { records: StudentRecord[]; progra
   const exams = topCounts(scoped.flatMap((r) => r.exams.filter((e) => e.result === 'qualified').map((e) => (e.exam === 'OTHERS' ? e.otherName : e.exam))))
   const areas = ACHIEVEMENT_AREAS.map((a) => ({ label: a, count: scoped.filter((r) => areasOf(r).includes(a)).length })).filter((a) => a.count > 0).sort((a, b) => b.count - a.count)
 
-  // What current students are up to, by year of study.
-  const current = scoped.filter((r) => studyYearOf(r).index > 0)
-  const years = [1, 2, 3].map((index) => {
-    const list = current.filter((r) => Math.min(studyYearOf(r).index, 3) === index)
-    return {
-      index,
-      total: list.length,
-      active: list.filter((r) => r.activities.some((a) => a.ongoing)).length,
-      achievements: list.reduce((sum, r) => sum + r.achievements.length, 0),
-      interned: list.filter((r) => r.internships.length > 0).length,
-    }
-  })
-  const activityKinds = topCounts(current.flatMap((r) => r.activities.filter((a) => a.ongoing).map((a) => a.kind)), 8)
 
   return (
     <div className="space-y-6">
@@ -973,31 +1259,6 @@ function InsightsTab({ records, programmes }: { records: StudentRecord[]; progra
         <StatTile tint={TINTS[2]} label="Higher studies" value={`${pct(totals.hs, totals.total)}%`} note={`${totals.hs} graduates`} />
         <StatTile tint={TINTS[0]} label="Placed / employed" value={`${pct(totals.job, totals.total)}%`} note={`${totals.job} graduates`} />
         <StatTile tint={TINTS[1]} label="Median package" value={medianAll === null ? '—' : `₹${medianAll} LPA`} note={`From ${packages.length} reported packages`} />
-      </section>
-
-      <section className="card">
-        <p className="eyebrow">Current students</p>
-        <h2 className="text-2xl font-black mt-1">What each year is doing</h2>
-        <p className="text-sm text-ink-muted mt-1 mb-4">From students' own profiles — clubs, projects, courses and exam preparation they've marked as ongoing.</p>
-        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6">
-          <div className="grid sm:grid-cols-3 gap-3">
-            {years.map((y) => (
-              <div key={y.index} className={`card-tint ${TINTS[y.index]}`}>
-                <p className="text-sm font-semibold">{['', '1st', '2nd', '3rd'][y.index]} year</p>
-                <p className="text-3xl font-black mt-1">{y.total}</p>
-                <ul className="text-xs text-ink/70 mt-2 space-y-0.5">
-                  <li>{y.active} doing an activity</li>
-                  <li>{y.achievements} achievement{y.achievements === 1 ? '' : 's'}</li>
-                  <li>{y.interned} did an internship</li>
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div>
-            <h3 className="font-bold mb-3">Ongoing activities by type</h3>
-            <BarList items={activityKinds} />
-          </div>
-        </div>
       </section>
 
       <section className="card overflow-hidden">
@@ -1071,6 +1332,51 @@ function InsightsTab({ records, programmes }: { records: StudentRecord[]; progra
         </div>
       </section>
     </div>
+  )
+}
+
+/* What 1st, 2nd and 3rd years are up to, from their own profiles. */
+function YearActivityPanel({ records }: { records: StudentRecord[] }) {
+  const scoped = records
+  // What current students are up to, by year of study.
+  const current = scoped.filter((r) => studyYearOf(r).index > 0)
+  const years = [1, 2, 3].map((index) => {
+    const list = current.filter((r) => Math.min(studyYearOf(r).index, 3) === index)
+    return {
+      index,
+      total: list.length,
+      active: list.filter((r) => r.activities.some((a) => a.ongoing)).length,
+      achievements: list.reduce((sum, r) => sum + r.achievements.length, 0),
+      interned: list.filter((r) => r.internships.length > 0).length,
+    }
+  })
+  const activityKinds = topCounts(current.flatMap((r) => r.activities.filter((a) => a.ongoing).map((a) => a.kind)), 8)
+
+  return (
+      <section className="card">
+        <p className="eyebrow">Current students</p>
+        <h2 className="text-2xl font-black mt-1">What each year is doing</h2>
+        <p className="text-sm text-ink-muted mt-1 mb-4">From students' own profiles — clubs, projects, courses and exam preparation they've marked as ongoing.</p>
+        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6">
+          <div className="grid sm:grid-cols-3 gap-3">
+            {years.map((y) => (
+              <div key={y.index} className={`card-tint ${TINTS[y.index]}`}>
+                <p className="text-sm font-semibold">{['', '1st', '2nd', '3rd'][y.index]} year</p>
+                <p className="text-3xl font-black mt-1">{y.total}</p>
+                <ul className="text-xs text-ink/70 mt-2 space-y-0.5">
+                  <li>{y.active} doing an activity</li>
+                  <li>{y.achievements} achievement{y.achievements === 1 ? '' : 's'}</li>
+                  <li>{y.interned} did an internship</li>
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div>
+            <h3 className="font-bold mb-3">Ongoing activities by type</h3>
+            <BarList items={activityKinds} />
+          </div>
+        </div>
+      </section>
   )
 }
 
