@@ -11,6 +11,18 @@ interface AuthCtx {
 
 const Ctx = createContext<AuthCtx>({ user: null, loading: true, setUser: () => {} })
 
+const KNOWN_ROLES = ['student', 'teacher', 'cr']
+
+/*
+ * An earlier build had a separate "alumni" role. Anyone still holding such an
+ * account is a student who has graduated, so treat them as a student rather
+ * than bouncing between the login page and a dashboard they can't open.
+ */
+function withKnownRole(user: UserProfile | null): UserProfile | null {
+  if (!user || KNOWN_ROLES.includes(user.role)) return user
+  return { ...user, role: 'student' }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -27,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isDemoMode()) {
         const demoUser = getLocalCurrentUser()
         if (mounted && requestId === request) {
-          setUser(demoUser)
+          setUser(withKnownRole(demoUser))
           setLoading(false)
         }
         return
@@ -44,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const profile = await getById<UserProfile>('users', uid)
         if (mounted && requestId === request) {
-          setUser(profile)
+          setUser(withKnownRole(profile))
           setLoading(false)
         }
       } catch (error) {
@@ -62,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return
       if (isDemoMode()) {
         const latest = getLocalCurrentUser()
-        if (latest) setUser(latest)
+        if (latest) setUser(withKnownRole(latest))
       }
     }, 2500)
 
@@ -73,7 +85,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  return <Ctx.Provider value={{ user, loading, setUser }}>{children}</Ctx.Provider>
+  return (
+    <Ctx.Provider value={{ user, loading, setUser: (next) => setUser(withKnownRole(next)) }}>
+      {children}
+    </Ctx.Provider>
+  )
 }
 
 export function useAuth() { return useContext(Ctx) }

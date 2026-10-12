@@ -68,8 +68,13 @@ function clearDemoCollections() {
   localStorage.removeItem('sat_local_auth_uid')
 }
 
+/* Bump when the demo data's shape changes, so browsers holding old demo data re-run setup. */
+const DEMO_DATA_VERSION = '2'
+const DEMO_VERSION_KEY = 'sat_demo_version'
+
 export function hasDemoData() {
   try {
+    if (localStorage.getItem(DEMO_VERSION_KEY) !== DEMO_DATA_VERSION) return false
     const raw = localStorage.getItem('sat_local_users')
     if (!raw) return false
     const users = Object.values(JSON.parse(raw) as Record<string, UserProfile & { password: string }>)
@@ -219,5 +224,6 @@ export async function setupDemoData(onProgress?: (message: string) => void) {
     studentProgramme: DEMO_PROGRAM,
   })
 
+  localStorage.setItem(DEMO_VERSION_KEY, DEMO_DATA_VERSION)
   progress('Demo setup complete.')
 }
