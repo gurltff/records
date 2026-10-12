@@ -75,12 +75,12 @@ export default function CreateProfileWizard({ onCreated }: { onCreated: (profile
           <li
             key={s.title}
             aria-current={i === step ? 'step' : undefined}
-            className={`rounded-2xl border-2 px-3 py-2 text-sm ${
+            className={`rounded-full border px-4 py-2 text-sm ${
               i === step
                 ? 'border-ink bg-ink text-cream-soft dark:bg-cream-soft dark:text-ink'
                 : i < step
-                  ? 'border-ink bg-sage text-ink'
-                  : 'border-ink/30 dark:border-cream-soft/30'
+                  ? 'border-line bg-sage text-ink'
+                  : 'border-line bg-cream-soft dark:bg-transparent dark:border-cream-soft/30'
             }`}
           >
             <span className="font-bold">{i < step ? '✓' : `${i + 1}.`}</span> {s.title}

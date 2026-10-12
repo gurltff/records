@@ -221,7 +221,7 @@ export function ToastProvider({
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`px-4 py-2.5 rounded-full shadow-pop border-2 border-ink text-ink text-sm font-semibold ${
+            className={`px-4 py-2.5 rounded-full shadow-pop border border-line text-ink text-sm font-semibold ${
               t.kind === 'success'
                 ? 'bg-sage'
                 : t.kind === 'error'

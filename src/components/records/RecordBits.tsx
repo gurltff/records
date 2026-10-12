@@ -23,7 +23,7 @@ export function FreshnessBadge({ record, showDate = false }: { record: StudentRe
   const state = FRESHNESS_STYLE[freshness(record)]
   return (
     <span className="inline-flex flex-col gap-0.5">
-      <span className={`badge border-ink text-ink whitespace-nowrap ${state.className}`}>
+      <span className={`badge text-ink whitespace-nowrap ${state.className}`}>
         <span aria-hidden="true">{state.icon}</span> {state.label}
       </span>
       {showDate && <span className="text-xs text-ink-muted">{relativeDays(lastTouched(record))}</span>}
@@ -55,7 +55,7 @@ export function VerifiedBadge({ verification }: { verification: RecordVerificati
   }
   return (
     <span
-      className="badge bg-sage border-ink text-ink whitespace-nowrap"
+      className="badge bg-sage text-ink whitespace-nowrap"
       title={`Verified by ${verification.verifiedByName} on ${formatDate(verification.verifiedAt)}`}
     >
       ✓ Verified
@@ -91,11 +91,13 @@ export function StatTile({
   note?: ReactNode
   tint: string
 }) {
+  // `tint` is kept for callers but stat tiles share the neutral card surface.
+  void tint
   return (
-    <div className={`card-tint ${tint}`}>
+    <div className="card">
       <p className="text-sm font-semibold">{label}</p>
       <p className="text-3xl font-black mt-1">{value}</p>
-      {note && <div className="text-xs text-ink/70 mt-1">{note}</div>}
+      {note && <div className="text-xs text-ink-muted mt-1">{note}</div>}
     </div>
   )
 }
@@ -161,7 +163,7 @@ export function SectionCard({
 /* Bordered sub-card used for each repeatable entry (internship, job…). */
 export function EntryCard({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
-    <div className="rounded-2xl border-2 border-ink/20 dark:border-cream-soft/20 p-3 sm:p-4">
+    <div className="rounded-2xl border border-line dark:border-cream-soft/20 p-3 sm:p-4">
       {aside && <div className="flex flex-wrap items-center justify-end gap-2 mb-3">{aside}</div>}
       {children}
     </div>

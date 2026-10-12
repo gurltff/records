@@ -300,7 +300,7 @@ export default function RecordDetail({
               {record.activities.length > 0 ? (
                 <ul className="grid sm:grid-cols-2 gap-2 mb-5">
                   {record.activities.map((a) => (
-                    <li key={a.id} className="rounded-2xl border-2 border-ink/15 dark:border-cream-soft/20 p-3 text-sm">
+                    <li key={a.id} className="rounded-2xl border border-line dark:border-cream-soft/20 p-3 text-sm">
                       <p className="font-semibold">
                         <span aria-hidden="true">{ACTIVITY_ICON[a.kind]} </span>
                         {a.title}
@@ -351,7 +351,7 @@ export default function RecordDetail({
                             const verified = verificationFor(entry.item, vMap)
                             const proofs = proofsFor(entry.item.id)
                             return (
-                              <li key={entry.item.id} className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-ink/15 dark:border-cream-soft/20 p-3">
+                              <li key={entry.item.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line dark:border-cream-soft/20 p-3">
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold">{entry.label || 'Untitled entry'}</p>
                                   {entryMeta(entry) && <p className="text-xs text-ink-muted">{entryMeta(entry)}</p>}
@@ -395,7 +395,7 @@ export default function RecordDetail({
                 {record.interests.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {record.interests.map((i) => (
-                      <span key={i} className="badge bg-butter border-ink text-ink">{i}</span>
+                      <span key={i} className="badge bg-butter text-ink">{i}</span>
                     ))}
                   </div>
                 )}

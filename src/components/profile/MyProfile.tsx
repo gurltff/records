@@ -103,9 +103,9 @@ function EditLink({ onClick, children = 'Edit' }: { onClick: () => void; childre
 
 function Stat({ value, label }: { value: ReactNode; label: string }) {
   return (
-    <div className="rounded-2xl bg-cream-soft/10 px-3 py-2">
+    <div className="rounded-2xl bg-cream-deep/70 dark:bg-cream-soft/5 border border-ink/5 px-3 py-2">
       <p className="text-xl font-black">{value}</p>
-      <p className="text-xs text-cream-soft/70">{label}</p>
+      <p className="text-xs text-ink-muted">{label}</p>
     </div>
   )
 }
@@ -202,7 +202,7 @@ export default function MyProfile() {
 
   return (
     <div className="space-y-5">
-      <ProfileHeader profile={profile} actions={<button type="button" className="rounded-full bg-cream-soft text-ink text-sm font-semibold px-4 py-2" onClick={() => open('about')}>✏️ Edit</button>}>
+      <ProfileHeader profile={profile} actions={<button type="button" className="btn-outline" onClick={() => open('about')}>✏️ Edit</button>}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
           <Stat value={profile.achievements.length} label="Achievements" />
           <Stat value={profile.internships.length} label="Internships" />
@@ -210,13 +210,11 @@ export default function MyProfile() {
           <Stat value={`${verifiedCount}/${entries.length}`} label="Verified by teachers" />
         </div>
         <div className="mt-4">
-          <div className="flex justify-between text-xs text-cream-soft/80 mb-1">
+          <div className="flex justify-between text-xs text-ink-muted mb-1">
             <span>Profile {score.percent}% complete{score.missing.length > 0 ? ` — next: ${score.missing[0]}` : ''}</span>
             <span>Updated {relativeDays(lastTouched(profile))}</span>
           </div>
-          <div className="w-full h-2 rounded-full bg-cream-soft/20 overflow-hidden">
-            <div className="h-full rounded-full bg-cream-soft" style={{ width: `${score.percent}%` }} />
-          </div>
+          <Meter value={score.percent} label="Profile completeness" />
         </div>
       </ProfileHeader>
 
@@ -294,7 +292,7 @@ export default function MyProfile() {
             ) : (
               <ul className="grid sm:grid-cols-2 gap-2">
                 {ongoing.map((a) => (
-                  <li key={a.id} className="rounded-2xl border-2 border-ink/15 dark:border-cream-soft/20 p-3">
+                  <li key={a.id} className="rounded-2xl border border-line dark:border-cream-soft/20 p-3">
                     <p className="font-semibold">
                       <span aria-hidden="true">{ACTIVITY_ICON[a.kind]} </span>
                       {a.title}
@@ -351,7 +349,7 @@ export default function MyProfile() {
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {profile.exams.map((e) => (
-                  <span key={e.id} className={`badge ${e.result === 'qualified' ? 'bg-sage border-ink text-ink' : ''}`}>
+                  <span key={e.id} className={`badge ${e.result === 'qualified' ? 'bg-sage text-ink' : ''}`}>
                     {examLabel(e)}
                   </span>
                 ))}
@@ -398,7 +396,7 @@ export default function MyProfile() {
           </Panel>
 
           {score.missing.length > 0 && (
-            <section className="card-tint tint-sky">
+            <section className="card-tint tint-butter">
               <h2 className="font-extrabold">Finish your profile</h2>
               <div className="my-2"><Meter value={score.percent} label="Profile completeness" /></div>
               <ul className="text-sm space-y-1">

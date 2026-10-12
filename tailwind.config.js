@@ -6,38 +6,41 @@ export default {
     extend: {
       colors: {
         brand: {
-          blue: '#111111',
-          green: '#333333',
+          blue: '#15130F',
+          green: '#24211E',
         },
+        // Warm cream scheme, matching the live Smart Attendance Tracker.
         cream: {
-          DEFAULT: '#F5F5F5',
-          soft: '#FFFFFF',
-          deep: '#E8E8E8',
+          DEFAULT: '#F7F1E3', // page background
+          soft: '#F4F2F1', // cards, navbar
+          deep: '#EFE6D2', // table headers
         },
         ink: {
-          DEFAULT: '#111111',
-          soft: '#242424',
-          muted: '#5C5C5C',
+          DEFAULT: '#15130F',
+          soft: '#24211E',
+          muted: '#6B6659',
         },
+        line: '#D6D4D3', // thin card borders
+        chip: '#E8E5E3', // navbar chips
         butter: {
-          DEFAULT: '#E6E6E6',
-          soft: '#F0F0F0',
-          deep: '#CFCFCF',
+          DEFAULT: '#F3EAD6',
+          soft: '#F8F2E5',
+          deep: '#E5D7B8',
         },
         blush: {
-          DEFAULT: '#D8D8D8',
-          soft: '#E7E7E7',
-          deep: '#BDBDBD',
+          DEFAULT: '#F1E2DC',
+          soft: '#F7EEEA',
+          deep: '#E2C9BF',
         },
         sage: {
-          DEFAULT: '#C8C8C8',
-          soft: '#DDDDDD',
-          deep: '#AFAFAF',
+          DEFAULT: '#E3E8D9',
+          soft: '#EEF1E7',
+          deep: '#C9D3B8',
         },
         sky: {
-          DEFAULT: '#D0D0D0',
-          soft: '#E2E2E2',
-          deep: '#B5B5B5',
+          DEFAULT: '#E9E4DA',
+          soft: '#F1EDE6',
+          deep: '#D3CBBB',
         },
       },
       borderRadius: {
@@ -50,8 +53,9 @@ export default {
         sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        pop: '0 2px 0 0 rgba(21,19,15,1)',
-        popLg: '0 4px 0 0 rgba(21,19,15,1)',
+        pop: '0 6px 18px -10px rgba(21,19,15,0.35)',
+        popLg: '0 10px 28px -12px rgba(21,19,15,0.35)',
+        card: '0 1px 2px rgba(21,19,15,0.04), 0 10px 24px -14px rgba(21,19,15,0.22)',
       },
     },
   },

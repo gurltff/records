@@ -27,7 +27,7 @@ export default function RecordTimeline({ updates, limit = 12 }: { updates: Recor
             <li key={item.id} className="ml-5">
               <span
                 aria-hidden="true"
-                className="absolute -left-[13px] w-6 h-6 rounded-full bg-butter border-2 border-ink text-ink text-[11px] flex items-center justify-center"
+                className="absolute -left-[13px] w-6 h-6 rounded-full bg-chip border border-line text-ink text-[11px] flex items-center justify-center"
               >
                 {ICON[item.action]}
               </span>

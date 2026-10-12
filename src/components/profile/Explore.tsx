@@ -140,7 +140,7 @@ export default function Explore() {
               {p.interests.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {p.interests.map((interest) => (
-                    <span key={interest} className="badge bg-butter border-ink text-ink">{interest}</span>
+                    <span key={interest} className="badge bg-butter text-ink">{interest}</span>
                   ))}
                 </div>
               )}

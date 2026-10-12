@@ -583,7 +583,7 @@ export default function AuthPage() {
       </div>
 
       {/* DEMO MODE */}
-      <div className="card-tint tint-sky mb-8">
+      <div className="card mb-8">
         <h2 className="font-extrabold text-lg mb-1">
           ⚡ Demo Mode
         </h2>
@@ -677,7 +677,7 @@ export default function AuthPage() {
 
       <div className="grid md:grid-cols-2 gap-8">
         {/* AUTH */}
-        <div className="card-tint tint-sky">
+        <div className="card">
           <div className="flex flex-wrap gap-3 mb-4">
             <button
               type="button"

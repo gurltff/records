@@ -468,7 +468,7 @@ export default function TeacherClassOverview() {
                 </select>
               </div>
 
-              <div className="rounded-2xl border-2 border-ink bg-butter px-5 py-4">
+              <div className="rounded-3xl border border-line bg-cream-soft shadow-card dark:bg-ink-soft dark:border-cream-soft/15 px-5 py-4">
                 <div className="text-sm">
                   Minimum attendance
                 </div>

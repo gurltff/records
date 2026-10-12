@@ -222,7 +222,7 @@ export function AboutFields({ value, set }: SectionProps) {
       <Field label="Interests" hint="Press Enter to add. Helps juniors find seniors with the same interests." group>
         <div className="flex flex-wrap gap-2 mb-2">
           {value.interests.map((interest) => (
-            <span key={interest} className="badge bg-butter border-ink text-ink inline-flex items-center gap-1">
+            <span key={interest} className="badge bg-butter text-ink inline-flex items-center gap-1">
               {interest}
               <button type="button" aria-label={`Remove ${interest}`} className="font-bold" onClick={() => set({ interests: value.interests.filter((i) => i !== interest) })}>
                 ×

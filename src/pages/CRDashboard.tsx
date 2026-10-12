@@ -514,7 +514,7 @@ function CRHome() {
           </p>
         </div>
 
-        <div className="rounded-2xl border-2 border-ink bg-butter px-5 py-4">
+        <div className="rounded-3xl border border-line bg-cream-soft shadow-card dark:bg-ink-soft dark:border-cream-soft/15 px-5 py-4">
           <div className="text-sm font-semibold">
             Your attendance
           </div>
@@ -962,7 +962,7 @@ function CRHome() {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border-2 border-ink bg-butter px-5 py-3">
+                <div className="rounded-3xl border border-line bg-cream-soft shadow-card dark:bg-ink-soft dark:border-cream-soft/15 px-5 py-3">
                   <span className="text-sm">
                     Class average
                   </span>

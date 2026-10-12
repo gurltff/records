@@ -26,9 +26,9 @@ export function DocumentViewer({ doc, onClose }: { doc: RecordDocument; onClose:
         {DOCUMENT_KIND_LABEL[doc.kind]} · uploaded by {doc.uploadedByName} on {formatDate(doc.uploadedAt)}
       </p>
       {isImage ? (
-        <img src={doc.dataUrl} alt={doc.name} className="w-full max-h-[70vh] object-contain rounded-2xl border-2 border-ink/20 bg-white" />
+        <img src={doc.dataUrl} alt={doc.name} className="w-full max-h-[70vh] object-contain rounded-2xl border border-line bg-white" />
       ) : renderable ? (
-        <iframe src={url} title={doc.name} className="w-full h-[70vh] rounded-2xl border-2 border-ink/20 bg-white" />
+        <iframe src={url} title={doc.name} className="w-full h-[70vh] rounded-2xl border border-line bg-white" />
       ) : (
         <p className="text-sm">This file type can't be previewed. Download it to view.</p>
       )}
@@ -150,11 +150,11 @@ export default function DocumentsPanel({
           .map((doc) => {
             const verified = verifications ? verificationFor(doc, verifications) : null
             return (
-              <div key={doc.id} className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-ink/15 dark:border-cream-soft/20 p-3">
+              <div key={doc.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line dark:border-cream-soft/20 p-3">
                 <button
                   type="button"
                   onClick={() => setOpen(doc)}
-                  className="w-14 h-14 shrink-0 rounded-xl border-2 border-ink/20 overflow-hidden bg-white flex items-center justify-center text-2xl"
+                  className="w-14 h-14 shrink-0 rounded-xl border border-line overflow-hidden bg-white flex items-center justify-center text-2xl"
                   aria-label={`View ${doc.name}`}
                 >
                   {doc.dataUrl.startsWith('data:image/') ? <img src={doc.dataUrl} alt="" className="w-full h-full object-cover" /> : '📄'}

@@ -853,7 +853,7 @@ function DrivesTab({
                   <div>
                     <h3 className="font-extrabold">
                       {drive.title}{' '}
-                      <span className={`badge ml-1 ${drive.isActive ? (overdue ? 'bg-blush border-ink text-ink' : 'bg-sage border-ink text-ink') : ''}`}>
+                      <span className={`badge ml-1 ${drive.isActive ? (overdue ? 'bg-blush text-ink' : 'bg-sage text-ink') : ''}`}>
                         {drive.isActive ? (overdue ? 'Overdue' : 'Open') : 'Closed'}
                       </span>
                     </h3>

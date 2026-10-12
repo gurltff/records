@@ -41,14 +41,14 @@ export default function JourneyTimeline({ profile, verifications }: { profile: S
               <li key={item.id} className="ml-5">
                 <span
                   aria-hidden="true"
-                  className="absolute -left-[13px] w-6 h-6 rounded-full bg-cream-soft dark:bg-ink-soft border-2 border-ink dark:border-cream-soft/60 text-[12px] flex items-center justify-center"
+                  className="absolute -left-[13px] w-6 h-6 rounded-full bg-chip dark:bg-ink-soft border border-line dark:border-cream-soft/30 text-[12px] flex items-center justify-center"
                 >
                   {ICON[item.kind]}
                 </span>
                 <p className="font-semibold leading-snug">
                   {item.title}
                   {isVerified(item.id) && (
-                    <span className="ml-2 badge bg-sage border-ink text-ink align-middle" title="Verified by a teacher">
+                    <span className="ml-2 badge bg-sage text-ink align-middle" title="Verified by a teacher">
                       ✓ Verified
                     </span>
                   )}
