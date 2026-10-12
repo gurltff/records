@@ -2,6 +2,7 @@ export type Role =
   | 'student'
   | 'teacher'
   | 'cr'
+  | 'alumni'
 
 export interface UserProfile {
   uid: string
@@ -13,6 +14,11 @@ export interface UserProfile {
   assignedCourseIds?: string[]
 
   year?: string
+
+  /*
+   * Alumni only: the year they graduated (e.g. "2026").
+   */
+  graduationYear?: string
 
   createdAt: number
 }
@@ -162,3 +168,4 @@ export interface AttendanceSession {
 
   createdAt: number
 }
+export * from './records'

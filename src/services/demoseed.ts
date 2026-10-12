@@ -1,5 +1,6 @@
 import { ensureDemoAccount } from './authService'
-import { put, getAll } from './store'
+import { put } from './store'
+import { RECORD_COLLECTIONS, seedRecords } from './recordsSeed'
 import { getProgramCourses, makeCourseKey, ABBREV_LEGEND } from '../data/scheduleData'
 import type { UserProfile, AttendanceRecord, AttendanceSession, Announcement, TimetableEntry } from '../types'
 
@@ -16,9 +17,15 @@ export const DEMO_TEACHER_SEEDS = [
   { name: 'Ms. Kapoor', email: 'kapoor.demo@example.com' },
 ]
 
+export const DEMO_ALUMNI_SEEDS = [
+  { name: 'Ananya Iyer', email: 'ananya.demo@example.com', programme: 'B.Sc. (Hons) Mathematics', graduationYear: '2025' },
+  { name: 'Kavya Menon', email: 'kavya.demo@example.com', programme: 'B.Com (Hons)', graduationYear: '2024' },
+]
+
 export const DEMO_LOGINS = [
   ...DEMO_STUDENT_SEEDS.map((x) => ({ ...x, role: 'student' as const })),
   ...DEMO_TEACHER_SEEDS.map((x) => ({ ...x, role: 'teacher' as const })),
+  ...DEMO_ALUMNI_SEEDS.map((x) => ({ name: x.name, email: x.email, role: 'alumni' as const })),
 ]
 
 export const DEMO_PROGRAM = 'B.Sc. (Hons) Physics'
@@ -42,6 +49,7 @@ function clearDemoCollections() {
     'timetableEntries',
     'announcements',
     'courses',
+    ...RECORD_COLLECTIONS,
   ]
   for (const col of collections) localStorage.removeItem(`sat_${col}`)
   localStorage.removeItem('sat_local_users')
@@ -177,6 +185,27 @@ export async function setupDemoData(onProgress?: (message: string) => void) {
     isActive: true,
   }
   await put('announcements', announcement)
+
+  progress('Creating alumni accounts…')
+  const alumni: UserProfile[] = []
+  for (const seed of DEMO_ALUMNI_SEEDS) {
+    const account = await ensureDemoAccount(seed.name, seed.email, DEMO_PASSWORD, 'alumni', {
+      enrolledCourseIds: [seed.programme],
+      year: 'Alumni',
+      graduationYear: seed.graduationYear,
+    })
+    await put('users', { ...account, id: account.uid })
+    alumni.push(account)
+  }
+
+  progress('Creating student & alumni records…')
+  await seedRecords({
+    students,
+    alumni,
+    teacher: { ...mehta, role: 'teacher' },
+    studyYear: DEMO_YEAR,
+    studentProgramme: DEMO_PROGRAM,
+  })
 
   progress('Demo setup complete.')
 }

@@ -614,6 +614,13 @@ export default function TeacherDashboard() {
             📊 Manage classes
           </Link>
 
+          <Link
+            className="btn-outline text-sm"
+            to="/teacher/records"
+          >
+            🎓 Student & alumni records
+          </Link>
+
           <button
             type="button"
             className="btn-outline text-sm"

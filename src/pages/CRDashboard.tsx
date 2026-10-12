@@ -5,6 +5,8 @@ import { create, getAll, getWhere, put, remove } from '../services/store'
 import { useToast } from '../components/Shared'
 import MarkPresence from '../components/student/MarkPresence'
 import AutoTimetable from '../components/student/AutoTimetable'
+import MyRecord from '../components/records/MyRecord'
+import AlumniNetwork from '../components/records/AlumniNetwork'
 
 import {
   SCHEDULE_DATA,
@@ -28,6 +30,8 @@ type Tab =
   | 'history'
   | 'class'
   | 'announcements'
+  | 'record'
+  | 'network'
 
 function getProgram(user: UserProfile) {
   const value = user.enrolledCourseIds?.[0] ?? ''
@@ -472,6 +476,14 @@ export default function CRDashboard() {
     {
       id: 'announcements',
       label: 'Announcements',
+    },
+    {
+      id: 'record',
+      label: 'My Record',
+    },
+    {
+      id: 'network',
+      label: 'Alumni Network',
     },
   ]
 
@@ -1290,6 +1302,10 @@ export default function CRDashboard() {
               </div>
             </section>
           )}
+
+          {activeTab === 'record' && <MyRecord />}
+
+          {activeTab === 'network' && <AlumniNetwork />}
         </>
       )}
     </main>

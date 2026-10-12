@@ -1,9 +1,9 @@
 {
-  "name": "smart-attendance-tracker",
+  "name": "maitreyi-smart-campus",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://gurltff.github.io/attendencetracker-",
+  "homepage": "https://gurltff.github.io/records",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

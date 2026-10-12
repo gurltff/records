@@ -50,7 +50,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.auth.uid == uid
         && request.resource.data.role
-          in ['student', 'teacher'];
+          in ['student', 'teacher', 'alumni'];
 
       /*
        * User can update their own profile,
@@ -74,6 +74,11 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['assignedCourseIds'])
             )
+            || (
+              resource.data.role == 'alumni'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['graduationYear'])
+            )
           )
         )
         ||
@@ -82,13 +87,14 @@ service cloud.firestore {
           && resource.data.role
              in ['student', 'cr']
           && request.resource.data.role
-             in ['student', 'cr']
+             in ['student', 'cr', 'alumni']
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
               'role',
               'assignedCourseIds',
               'enrolledCourseIds',
-              'year'
+              'year',
+              'graduationYear'
             ])
         )
       );
@@ -251,6 +257,151 @@ service cloud.firestore {
         if signedIn()
         && resource.data.studentId
            == request.auth.uid;
+    }
+
+    // =====================================================
+    // STUDENT & ALUMNI RECORDS
+    // =====================================================
+
+    function isTeacher() {
+      return signedIn() && myRole() == 'teacher';
+    }
+
+    function myEmail() {
+      return request.auth.token.email;
+    }
+
+    function recordOwner(recordId) {
+      return get(
+        /databases/$(database)/documents/studentRecords/$(recordId)
+      ).data.ownerUid;
+    }
+
+    // One record per student, owned by their account once claimed.
+    match /studentRecords/{id} {
+
+      // Owner, teachers, or a signed-in user whose verified email is on
+      // an unclaimed record (needed to find and claim it on first login).
+      allow read: if signedIn() && (
+        resource.data.ownerUid == request.auth.uid
+        || isTeacher()
+        || (
+          request.auth.token.email_verified == true
+          && (
+            resource.data.collegeEmail == myEmail()
+            || resource.data.personalEmail == myEmail()
+          )
+        )
+      );
+
+      allow create: if signedIn() && (
+        isTeacher()
+        || (
+          myRole() in ['student', 'cr', 'alumni']
+          && request.resource.data.ownerUid == request.auth.uid
+        )
+      );
+
+      allow update: if signedIn() && (
+        isTeacher()
+
+        // Owner edits their own record; ownership cannot be handed away.
+        || (
+          resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == request.auth.uid
+        )
+
+        // Claiming: an unclaimed record whose email matches the signed-in
+        // user's verified email, changing nothing but the owner.
+        || (
+          resource.data.ownerUid == null
+          && request.auth.token.email_verified == true
+          && (
+            resource.data.collegeEmail == myEmail()
+            || resource.data.personalEmail == myEmail()
+          )
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['ownerUid'])
+        )
+      );
+
+      allow delete: if isTeacher();
+    }
+
+    // Proof documents (offer letters, certificates) — private.
+    match /recordDocuments/{id} {
+      allow read: if signedIn() && (
+        isTeacher()
+        || recordOwner(resource.data.recordId) == request.auth.uid
+      );
+
+      allow create: if signedIn()
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.mimeType
+          in ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+        && request.resource.data.dataUrl.size() < 1000000
+        && (
+          isTeacher()
+          || recordOwner(request.resource.data.recordId) == request.auth.uid
+        );
+
+      allow update: if false;
+
+      allow delete: if signedIn() && (
+        isTeacher()
+        || recordOwner(resource.data.recordId) == request.auth.uid
+      );
+    }
+
+    // Append-only change history.
+    match /recordUpdates/{id} {
+      allow read: if signedIn() && (
+        isTeacher()
+        || recordOwner(resource.data.recordId) == request.auth.uid
+      );
+
+      allow create: if signedIn()
+        && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.actorRole == myRole()
+        && (
+          isTeacher()
+          || recordOwner(request.resource.data.recordId) == request.auth.uid
+        );
+
+      allow update, delete: if false;
+    }
+
+    // Only teachers can verify. The stored fingerprint makes a
+    // verification lapse automatically when the student edits the entry.
+    match /recordVerifications/{id} {
+      allow read: if signedIn() && (
+        isTeacher()
+        || recordOwner(resource.data.recordId) == request.auth.uid
+      );
+
+      allow create, update: if isTeacher()
+        && request.resource.data.verifiedBy == request.auth.uid;
+
+      allow delete: if isTeacher();
+    }
+
+    // Update requests ("drives") sent by teachers.
+    match /updateDrives/{id} {
+      allow read: if signedIn();
+      allow create, update: if isTeacher()
+        && request.resource.data.createdBy is string;
+      allow delete: if isTeacher();
+    }
+
+    // Opt-in alumni network: public subset only, written by its owner.
+    match /directoryProfiles/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.auth.uid == uid;
+      // Teachers can take a card down (e.g. when deleting a record).
+      allow delete: if signedIn()
+        && (request.auth.uid == uid || isTeacher());
     }
 
     // DENY EVERYTHING ELSE

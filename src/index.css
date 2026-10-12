@@ -835,5 +835,64 @@ body {
 
 
 /* =========================================================
+   PRINTABLE RECORD (paper Alumni Database form)
+   ========================================================= */
+
+/* The form always prints black on white, even when the app is in dark mode. */
+.print-sheet,
+.dark .print-sheet {
+  background: #ffffff !important;
+  color: #15130f !important;
+}
+
+.dark .print-sheet * {
+  color: #15130f !important;
+}
+
+.dark .print-sheet .text-ink\/40,
+.dark .print-sheet .text-ink\/50 {
+  color: rgba(21, 19, 15, 0.55) !important;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  .app-navbar,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+  }
+
+  .app-main {
+    padding-top: 0 !important;
+  }
+
+  .page-shell {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .print-sheet {
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .print-sheet tr,
+  .print-sheet li {
+    break-inside: avoid;
+  }
+}
+
+
+/* =========================================================
    END
    ========================================================= */

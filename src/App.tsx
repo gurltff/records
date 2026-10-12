@@ -7,11 +7,14 @@ import {
   ToastProvider,
 } from './components/Shared'
 
+import AlumniDashboard from './pages/AlumniDashboard'
 import AuthPage from './pages/AuthPage'
 import CRDashboard from './pages/CRDashboard'
+import PrintRecord from './pages/PrintRecord'
 import StudentDashboard from './pages/StudentDashboard'
 import TeacherDashboard from './pages/TeacherDashboard'
 import TeacherClassOverview from './pages/TeacherClassOverview'
+import TeacherRecords from './pages/TeacherRecords'
 import TimetablePage from './pages/TimetablePage'
 
 export default function App() {
@@ -60,6 +63,36 @@ export default function App() {
               <ProtectedRoute role="teacher">
                 <TeacherClassOverview />
               </ProtectedRoute>
+            }
+          />
+
+          {/* TEACHER - STUDENT & ALUMNI RECORDS */}
+          <Route
+            path="/teacher/records"
+            element={
+              <ProtectedRoute role="teacher">
+                <TeacherRecords />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ALUMNI */}
+          <Route
+            path="/alumni"
+            element={
+              <ProtectedRoute role="alumni">
+                <AlumniDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* PRINTABLE ALUMNI DATABASE FORM */}
+          <Route
+            path="/records/:id/print"
+            element={
+              <AuthenticatedRoute>
+                <PrintRecord />
+              </AuthenticatedRoute>
             }
           />
 

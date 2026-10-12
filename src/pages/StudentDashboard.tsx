@@ -7,8 +7,10 @@ import Overview from '../components/student/Overview'
 import AutoTimetable from '../components/student/AutoTimetable'
 import MarkPresence from '../components/student/MarkPresence'
 import History from '../components/student/History'
+import MyRecord from '../components/records/MyRecord'
+import AlumniNetwork from '../components/records/AlumniNetwork'
 
-type Tab = 'overview' | 'timetable' | 'mark' | 'history'
+type Tab = 'overview' | 'timetable' | 'mark' | 'history' | 'record' | 'network'
 
 export default function StudentDashboard() {
   const { user, setUser } = useAuth()
@@ -30,6 +32,8 @@ export default function StudentDashboard() {
     { key: 'timetable', label: 'Timetable' },
     { key: 'mark', label: 'Mark My Presence' },
     { key: 'history', label: 'History' },
+    { key: 'record', label: 'My Record' },
+    { key: 'network', label: 'Alumni Network' },
   ]
 
   const programName = user?.enrolledCourseIds?.[0]
@@ -79,6 +83,8 @@ export default function StudentDashboard() {
       )}
       {tab === 'mark' && <MarkPresence courses={courses} onSaved={refreshRecords} />}
       {tab === 'history' && <History records={records} courses={courses} />}
+      {tab === 'record' && <MyRecord />}
+      {tab === 'network' && <AlumniNetwork />}
     </main>
   )
 }

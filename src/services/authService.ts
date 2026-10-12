@@ -175,7 +175,7 @@ export function notifyLocalAuthChanged() {
 }
 
 function validateRole(role: Role) {
-  if (!['student', 'teacher', 'cr'].includes(role)) {
+  if (!['student', 'teacher', 'cr', 'alumni'].includes(role)) {
     throw new Error('Invalid user role.')
   }
 }
@@ -189,6 +189,7 @@ export async function signUp(
     enrolledCourseIds?: string[]
     assignedCourseIds?: string[]
     year?: string
+    graduationYear?: string
   }
 ): Promise<UserProfile> {
   validateRole(role)
@@ -249,6 +250,9 @@ export async function signUp(
       ...(options?.year !== undefined
         ? { year: options.year }
         : {}),
+      ...(options?.graduationYear !== undefined
+        ? { graduationYear: options.graduationYear }
+        : {}),
     }
 
     users[uid] = {
@@ -302,6 +306,9 @@ export async function signUp(
       : {}),
     ...(options?.year !== undefined
       ? { year: options.year }
+      : {}),
+    ...(options?.graduationYear !== undefined
+      ? { graduationYear: options.graduationYear }
       : {}),
   }
 
@@ -415,7 +422,7 @@ export async function logIn(
   if (!profile) {
     await signOut(auth)
     throw new Error(
-      'Your account is missing an attendance profile. Please contact an administrator.'
+      'Your account is missing a profile. Please contact an administrator.'
     )
   }
 
@@ -660,11 +667,12 @@ export async function ensureDemoAccount(
   name: string,
   email: string,
   password: string,
-  role: 'student' | 'teacher',
+  role: 'student' | 'teacher' | 'alumni',
   options?: {
     enrolledCourseIds?: string[]
     assignedCourseIds?: string[]
     year?: string
+    graduationYear?: string
   }
 ): Promise<UserProfile> {
   const users = getLocalUsers()
@@ -694,6 +702,9 @@ export async function ensureDemoAccount(
       year:
         options?.year ??
         existing.year,
+      graduationYear:
+        options?.graduationYear ??
+        existing.graduationYear,
     }
 
     users[existing.uid] = {
@@ -720,6 +731,7 @@ export async function ensureDemoAccount(
     assignedCourseIds:
       options?.assignedCourseIds,
     year: options?.year,
+    graduationYear: options?.graduationYear,
     createdAt: now(),
   }
 

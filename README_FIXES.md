@@ -1,17 +1,18 @@
-# Smart Attendance Tracker - corrected demo/auth build
+# Demo accounts
 
-## Demo accounts
-- Aarav Sharma — aarav.demo@example.com — Demo@1234
-- Priya Nair — priya.demo@example.com — Demo@1234
-- Rohan Verma — rohan.demo@example.com — Demo@1234
-- Dr. Mehta — mehta.demo@example.com — Demo@1234
-- Ms. Kapoor — kapoor.demo@example.com — Demo@1234
+All demo accounts use the password `Demo@1234`. Click **Set up demo data** on the login page first.
 
-Aarav starts as CR. The teacher can promote any student to CR from Manage Classes. Only the current CR receives the CR dashboard.
+- Aarav Sharma — aarav.demo@example.com (student, starts as CR)
+- Priya Nair — priya.demo@example.com (student)
+- Rohan Verma — rohan.demo@example.com (student)
+- Dr. Mehta — mehta.demo@example.com (teacher)
+- Ms. Kapoor — kapoor.demo@example.com (teacher)
+- Ananya Iyer — ananya.demo@example.com (alumni)
+- Kavya Menon — kavya.demo@example.com (alumni)
+
+The teacher can promote any student to CR from Manage Classes. Only the current CR receives the CR dashboard.
 
 ## Important implementation detail
 Demo accounts and demo data are stored locally so demo setup never signs into or replaces a real Firebase session. Real email/password accounts still use Firebase Authentication and Firestore.
 
-## Run
-npm install
-npm run dev
+See README.md for the student & alumni records features.

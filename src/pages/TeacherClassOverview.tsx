@@ -1,4 +1,3 @@
-          <div className="text-4xl mb-3">📚</div>
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -404,6 +403,13 @@ export default function TeacherClassOverview() {
             className="btn-primary"
           >
             Manage classes
+          </Link>
+
+          <Link
+            to="/teacher/records"
+            className="btn-outline"
+          >
+            Student records
           </Link>
         </div>
       </section>
