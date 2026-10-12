@@ -8,10 +8,17 @@ import {
   driveMatches,
   driveProgress,
   durationLabel,
+  doingNow,
+  emptyAchievement,
+  emptyActivity,
   emptyEmployment,
   emptyHigherStudy,
   emptyInternship,
   emptyRecord,
+  journeyOf,
+  normaliseRecord,
+  pruneEmpty,
+  studyYearOf,
   fingerprint,
   freshness,
   headline,
@@ -23,7 +30,10 @@ import {
   verificationFor,
   verificationMap,
 } from './records'
-import type { RecordVerification, UpdateDrive } from '../types'
+import type { ExamName, RecordVerification, UpdateDrive } from '../types'
+import { emptyExam } from './records'
+
+const emptyExamFor = (exam: ExamName) => emptyExam(exam)
 
 const DAY = 24 * 60 * 60 * 1000
 const NOW = new Date('2026-10-12T12:00:00').getTime()
@@ -94,6 +104,7 @@ describe('completeness', () => {
   it('lists what is missing and counts proof only when documents are known', () => {
     const r = emptyRecord({
       name: 'Test Student',
+      bio: 'Maths student',
       rollNo: '1',
       programme: 'B.Sc. (Hons) Mathematics',
       admissionYear: '2023',
@@ -108,7 +119,7 @@ describe('completeness', () => {
     })
     expect(completeness(r)).toEqual({ percent: 100, missing: [] })
     const withDocs = completeness(r, 0)
-    expect(withDocs.percent).toBe(89)
+    expect(withDocs.percent).toBe(90)
     expect(withDocs.missing[0]).toMatch(/Proof document/)
     expect(completeness({ ...r, hadInternships: 'yes', internships: [] }).missing).toContain('Internships during graduation')
   })
@@ -198,5 +209,74 @@ describe('durations', () => {
     expect(durationLabel('2025-06-20', '2025-08-20')).toBe('2 months')
     expect(durationLabel('2025-06-01', '2025-06-15')).toBe('2 weeks')
     expect(durationLabel('', '2025-06-15')).toBe('')
+  })
+})
+
+describe('year of study', () => {
+  const at = new Date('2026-10-12')
+  it('counts from the July session', () => {
+    expect(studyYearOf(emptyRecord({ admissionYear: '2026', graduationYear: '2029' }), at)).toMatchObject({ index: 1, short: '1st year' })
+    expect(studyYearOf(emptyRecord({ admissionYear: '2024', graduationYear: '2027' }), at)).toMatchObject({ index: 3, label: 'Third Year' })
+  })
+  it('treats a finished batch or a graduated profile as graduated', () => {
+    expect(studyYearOf(emptyRecord({ admissionYear: '2023', graduationYear: '2026' }), at).label).toBe('Graduated')
+    expect(studyYearOf(emptyRecord({ status: 'alumni', admissionYear: '2025', graduationYear: '2028' }), at).index).toBe(0)
+  })
+})
+
+describe('journey', () => {
+  it('groups entries by year of college, newest first', () => {
+    const record = emptyRecord({
+      admissionYear: '2023',
+      graduationYear: '2026',
+      achievements: [
+        { ...emptyAchievement(), title: 'Quiz winner', date: '2023-11-02' },
+        { ...emptyAchievement(), title: 'Paper', date: '2025-01-20' },
+        { ...emptyAchievement(), title: 'Untitled date', date: '' },
+      ],
+      exams: [{ ...emptyExamFor('JAM'), result: 'qualified', year: '2026' }],
+    })
+    const buckets = journeyOf(record)
+    expect(buckets.map((b) => b.label)).toEqual(['Undated', 'Third Year (2025–26)', 'Second Year (2024–25)', 'First Year (2023–24)'])
+    expect(buckets[1].items[0].title).toBe('JAM — cleared')
+    expect(buckets[2].items[0].title).toBe('Paper')
+  })
+})
+
+describe('doing now', () => {
+  it('lists ongoing activities, and the course or job of graduates', () => {
+    const r = emptyRecord({
+      activities: [
+        { ...emptyActivity(), title: 'Preparing for CAT' },
+        { ...emptyActivity(), title: 'Old club', ongoing: false },
+      ],
+    })
+    expect(doingNow(r)).toEqual(['Preparing for CAT'])
+    const grad = { ...r, status: 'alumni' as const, employment: [{ ...emptyEmployment(), designation: 'Analyst', company: 'Northwind' }] }
+    expect(doingNow(grad)).toEqual(['Analyst · Northwind', 'Preparing for CAT'])
+  })
+})
+
+describe('cleanup', () => {
+  it('drops blank entries before saving', () => {
+    const r = emptyRecord({
+      achievements: [emptyAchievement(), { ...emptyAchievement(), title: 'Kept' }],
+      activities: [emptyActivity()],
+      internships: [emptyInternship()],
+    })
+    const clean = pruneEmpty(r)
+    expect(clean.achievements.map((a) => a.title)).toEqual(['Kept'])
+    expect(clean.activities).toEqual([])
+    expect(clean.internships).toEqual([])
+  })
+
+  it('fills fields missing from profiles saved by older versions', () => {
+    const old = { ...emptyRecord({ name: 'Old' }) } as any
+    delete old.activities
+    delete old.bio
+    const fixed = normaliseRecord(old)
+    expect(fixed.activities).toEqual([])
+    expect(fixed.bio).toBe('')
+    expect(fixed.name).toBe('Old')
   })
 })

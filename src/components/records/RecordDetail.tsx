@@ -28,6 +28,7 @@ import {
   durationLabel,
   formatDate,
   headline,
+  monthLabel,
   newId,
   verifiableEntries,
   verificationFor,
@@ -38,6 +39,8 @@ import { Modal, useToast } from '../Shared'
 import DocumentsPanel, { DocumentViewer } from './DocumentsPanel'
 import RecordForm from './RecordForm'
 import RecordTimeline from './RecordTimeline'
+import JourneyTimeline from '../profile/JourneyTimeline'
+import { ACTIVITY_ICON } from '../../data/recordOptions'
 import { FreshnessBadge, Meter, OutcomeBadge, SectionCard, StatusBadge, VerifiedBadge } from './RecordBits'
 
 function entryMeta(entry: VerifiableEntry): string {
@@ -236,6 +239,7 @@ export default function RecordDetail({
       <div className="space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
+            {record.bio && <p className="italic">“{record.bio}”</p>}
             <p className="font-semibold">{headline(record)}</p>
             <p className="text-sm text-ink-muted">
               {record.programme || 'Course not set'} · Batch {batchLabel(record)} · Roll no. {record.rollNo || '—'}
@@ -292,6 +296,27 @@ export default function RecordDetail({
               </div>
             )}
 
+            <SectionCard title="Doing now & journey">
+              {record.activities.length > 0 ? (
+                <ul className="grid sm:grid-cols-2 gap-2 mb-5">
+                  {record.activities.map((a) => (
+                    <li key={a.id} className="rounded-2xl border-2 border-ink/15 dark:border-cream-soft/20 p-3 text-sm">
+                      <p className="font-semibold">
+                        <span aria-hidden="true">{ACTIVITY_ICON[a.kind]} </span>
+                        {a.title}
+                      </p>
+                      <p className="text-xs text-ink-muted">
+                        {[a.kind, a.organisation, a.ongoing ? 'ongoing' : 'earlier', a.since && `since ${monthLabel(a.since)}`].filter(Boolean).join(' · ')}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-ink-muted mb-5">No current activities added.</p>
+              )}
+              <JourneyTimeline profile={record} verifications={vMap} />
+            </SectionCard>
+
             <SectionCard title="Contact">
               <Row label="College email">{record.collegeEmail}</Row>
               <Row label="Personal email">{record.personalEmail}</Row>
@@ -306,8 +331,8 @@ export default function RecordDetail({
             </SectionCard>
 
             <SectionCard
-              title="Entries"
-              subtitle="Verify each entry against its proof document. If the student edits an entry later, it becomes unverified automatically."
+              title="Verify entries"
+              subtitle="Check each entry against its proof document. If the student edits an entry later, it becomes unverified automatically."
             >
               <div className="space-y-5">
                 {groups.map(([title, kind]) => {

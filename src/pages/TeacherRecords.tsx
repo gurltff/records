@@ -54,6 +54,8 @@ import {
   newId,
   packageOf,
   primaryOutcome,
+  studyYearOf,
+  doingNow,
   topCounts,
   verifiableEntries,
   verificationFor,
@@ -70,13 +72,30 @@ interface Filters {
   search: string
   programme: string
   batch: string
-  status: '' | 'current' | 'alumni'
+  /* '1'–'3' year of study, '0' graduated */
+  year: '' | '0' | '1' | '2' | '3'
   outcome: '' | Outcome
   area: string
   freshness: '' | 'fresh' | 'due' | 'stale'
 }
 
-const NO_FILTERS: Filters = { search: '', programme: '', batch: '', status: '', outcome: '', area: '', freshness: '' }
+const NO_FILTERS: Filters = { search: '', programme: '', batch: '', year: '', outcome: '', area: '', freshness: '' }
+
+const YEAR_TABS: { value: Filters['year']; label: string }[] = [
+  { value: '', label: 'All' },
+  { value: '1', label: '1st year' },
+  { value: '2', label: '2nd year' },
+  { value: '3', label: '3rd year' },
+  { value: '0', label: 'Graduated' },
+]
+
+const yearKey = (record: StudentRecord) => String(Math.min(studyYearOf(record).index, 3))
+
+function nowText(record: StudentRecord) {
+  if (record.status === 'alumni') return headline(record)
+  const now = doingNow(record)
+  return now.length ? now.join(' · ') : 'Nothing added yet'
+}
 
 function matchesSearch(record: StudentRecord, query: string) {
   const q = query.trim().toLowerCase()
@@ -92,6 +111,8 @@ function matchesSearch(record: StudentRecord, query: string) {
     ...record.employment.map((j) => `${j.designation} ${j.company}`),
     ...record.internships.map((i) => `${i.title} ${i.organisation}`),
     ...record.interests,
+    ...record.activities.map((a) => `${a.title} ${a.organisation}`),
+    record.bio,
   ]
     .join(' ')
     .toLowerCase()
@@ -175,7 +196,7 @@ export default function TeacherRecords() {
         .filter((r) => matchesSearch(r, filters.search))
         .filter((r) => !filters.programme || r.programme === filters.programme)
         .filter((r) => !filters.batch || r.graduationYear === filters.batch)
-        .filter((r) => !filters.status || r.status === filters.status)
+        .filter((r) => !filters.year || yearKey(r) === filters.year)
         .filter((r) => !filters.outcome || primaryOutcome(r) === filters.outcome)
         .filter((r) => !filters.area || areasOf(r).includes(filters.area as never))
         .filter((r) => !filters.freshness || freshness(r) === filters.freshness)
@@ -187,6 +208,7 @@ export default function TeacherRecords() {
   const actor = actorOf(user)
 
   const alumniCount = records.filter((r) => r.status === 'alumni').length
+  const byYear = (key: string) => records.filter((r) => yearKey(r) === key).length
   const needUpdate = records.filter((r) => freshness(r) !== 'fresh').length
   const linked = records.filter((r) => r.ownerUid).length
   const selected = records.find((r) => r.id === selectedId) ?? null
@@ -194,13 +216,13 @@ export default function TeacherRecords() {
   /* ---------- actions ---------- */
 
   async function handleGraduate(year: string) {
-    if (!window.confirm(`Move every current-student record from batch ${year} to alumni? Linked accounts switch to the alumni dashboard and a welcome update request is sent.`)) return
+    if (!window.confirm(`Mark every student of batch ${year} as graduated? They keep the same login, and get a request to add what they're doing next.`)) return
     setBusy(true)
     try {
       const count = await graduateBatch(records, '', year, actor)
       await saveDrive({
         id: newId('drive'),
-        title: `Welcome to the alumni network, batch of ${year}!`,
+        title: `Congratulations, batch of ${year}! 🎓`,
         message: 'Congratulations on graduating. Tell us what comes next — higher studies, a job, or exam preparation — and upload your admission or offer letter.',
         audience: 'alumni',
         programme: '',
@@ -213,10 +235,10 @@ export default function TeacherRecords() {
         isActive: true,
       })
       await load()
-      push(`${count} record${count === 1 ? '' : 's'} moved to alumni.`, 'success')
+      push(`${count} student${count === 1 ? '' : 's'} marked as graduated.`, 'success')
     } catch (error) {
       console.error(error)
-      push('Could not move the batch to alumni.', 'error')
+      push('Could not mark the batch as graduated.', 'error')
     } finally {
       setBusy(false)
     }
@@ -255,7 +277,7 @@ export default function TeacherRecords() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'records', label: `Records (${records.length})` },
+    { id: 'records', label: `Profiles (${records.length})` },
     { id: 'verify', label: `Verification queue (${unverified.length})` },
     { id: 'drives', label: 'Update requests' },
     { id: 'insights', label: 'Batch outcomes' },
@@ -266,10 +288,10 @@ export default function TeacherRecords() {
       <section className="page-header">
         <div>
           <p className="eyebrow">Teacher workspace</p>
-          <h1 className="page-title">Student & alumni records</h1>
+          <h1 className="page-title">Student profiles</h1>
           <p className="page-subtitle max-w-2xl">
-            One digital record per student, from admission to alumni life — replacing the paper Alumni Database forms.
-            Students and alumni keep their own record updated; you verify it and report on it.
+            Every student's profile, from first year to after graduation — what they're doing, their achievements, and
+            the details from the paper Alumni Database form. Students keep it updated; you verify it and report on it.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -284,7 +306,7 @@ export default function TeacherRecords() {
             className="btn-primary"
             onClick={() => setAdding(emptyRecord({ source: 'teacher', status: 'alumni' }))}
           >
-            + Add record
+            + Add from paper form
           </button>
         </div>
       </section>
@@ -294,7 +316,12 @@ export default function TeacherRecords() {
       ) : (
         <>
           <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatTile tint={TINTS[3]} label="Records on file" value={records.length} note={`${alumniCount} alumni · ${records.length - alumniCount} current students`} />
+            <StatTile
+              tint={TINTS[3]}
+              label="Student profiles"
+              value={records.length}
+              note={`1st ${byYear('1')} · 2nd ${byYear('2')} · 3rd ${byYear('3')} · graduated ${alumniCount}`}
+            />
             <StatTile tint={TINTS[1]} label="Need an update" value={needUpdate} note="Not updated or confirmed in 6+ months" />
             <StatTile
               tint={TINTS[0]}
@@ -308,10 +335,10 @@ export default function TeacherRecords() {
           {graduationDue.map(([year, count]) => (
             <div key={year} className="card-tint tint-butter mb-6 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm">
-                🎓 <b>{count} record{count === 1 ? '' : 's'} from batch {year}</b> {count === 1 ? 'is' : 'are'} still marked as current students, but that session has ended.
+                🎓 <b>{count} student{count === 1 ? '' : 's'} from batch {year}</b> {count === 1 ? 'has' : 'have'} finished the final year but {count === 1 ? "isn't" : "aren't"} marked as graduated yet.
               </p>
               <button type="button" className="btn-primary text-sm" disabled={busy} onClick={() => handleGraduate(year)}>
-                Move batch {year} to alumni
+                Mark batch {year} as graduated
               </button>
             </div>
           ))}
@@ -360,7 +387,7 @@ export default function TeacherRecords() {
       )}
 
       {adding && (
-        <Modal wide title="Add a record (digitise a paper form)" onClose={() => setAdding(null)}>
+        <Modal wide title="Add a profile from a paper form" onClose={() => setAdding(null)}>
           <RecordForm value={adding} onChange={setAdding} mode="teacher" />
           <div className="sticky bottom-0 card flex flex-wrap justify-end gap-2 mt-4">
             <button type="button" className="btn-outline text-sm" onClick={() => setAdding(null)}>
@@ -417,10 +444,24 @@ function RecordsTab({
   return (
     <div className="space-y-4">
       <section className="card">
+        <div className="flex flex-wrap gap-2 mb-3" role="tablist" aria-label="Year of study">
+          {YEAR_TABS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="tab"
+              aria-selected={filters.year === t.value}
+              className={`pill-tab ${filters.year === t.value ? 'pill-tab-active' : 'pill-tab-idle'}`}
+              onClick={() => set({ year: t.value })}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <input
             className="input lg:col-span-2"
-            placeholder="Search name, roll no., email, company, institute…"
+            placeholder="Search name, roll no., club, project, company, institute…"
             value={filters.search}
             onChange={(e) => set({ search: e.target.value })}
             aria-label="Search records"
@@ -436,11 +477,6 @@ function RecordsTab({
             {batches.map((b) => (
               <option key={b} value={b}>Batch of {b}</option>
             ))}
-          </select>
-          <select className="input" value={filters.status} onChange={(e) => set({ status: e.target.value as Filters['status'] })} aria-label="Status">
-            <option value="">Current & alumni</option>
-            <option value="current">Current students</option>
-            <option value="alumni">Alumni</option>
           </select>
           <select className="input" value={filters.outcome} onChange={(e) => set({ outcome: e.target.value as Filters['outcome'] })} aria-label="Doing now">
             <option value="">Doing anything</option>
@@ -502,7 +538,9 @@ function RecordsTab({
                     <span className="block text-xs text-ink-muted">
                       {record.programme || '—'} · {batchLabel(record)}
                     </span>
-                    <span className="block text-xs mt-1 truncate">{record.status === 'alumni' ? headline(record) : 'Current student'}</span>
+                    <span className="block text-xs mt-1 truncate">
+                      {studyYearOf(record).short} · {nowText(record)}
+                    </span>
                   </span>
                   <span className="shrink-0">
                     <FreshnessBadge record={record} />
@@ -516,7 +554,7 @@ function RecordsTab({
               <thead>
                 <tr>
                   <th>Student</th>
-                  <th>Course · Batch</th>
+                  <th>Course · Year</th>
                   <th>Doing now</th>
                   <th>Complete</th>
                   <th>Last updated</th>
@@ -536,14 +574,17 @@ function RecordsTab({
                       </td>
                       <td>
                         <div className="font-semibold">{record.programme || '—'}</div>
-                        <div className="text-xs text-ink-muted">{batchLabel(record)}</div>
-                      </td>
-                      <td className="max-w-[260px]">
-                        <div className="flex flex-wrap gap-1 mb-1">
-                          <StatusBadge record={record} />
-                          {record.status === 'alumni' && <OutcomeBadge record={record} />}
+                        <div className="text-xs text-ink-muted">
+                          {studyYearOf(record).label} · {batchLabel(record)}
                         </div>
-                        <div className="text-xs truncate" title={headline(record)}>{record.status === 'alumni' ? headline(record) : ''}</div>
+                      </td>
+                      <td className="max-w-[280px]">
+                        {record.status === 'alumni' && (
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            <OutcomeBadge record={record} />
+                          </div>
+                        )}
+                        <div className="text-xs line-clamp-2" title={nowText(record)}>{nowText(record)}</div>
                       </td>
                       <td className="w-32">
                         <div className="text-xs font-semibold tabular-nums mb-1">{score}%</div>
@@ -674,9 +715,9 @@ function VerifyTab({
    ========================================================= */
 
 const AUDIENCE_LABEL: Record<DriveAudience, string> = {
-  alumni: 'Alumni',
+  alumni: 'Graduated students',
   current: 'Current students',
-  all: 'Students & alumni',
+  all: 'Everyone',
 }
 
 function DrivesTab({
@@ -699,8 +740,8 @@ function DrivesTab({
   const { push } = useToast()
   const year = new Date().getFullYear()
   const blank = {
-    title: `Annual alumni update ${year}`,
-    message: 'Please review your record — current course or job, exams cleared, achievements — and upload any new offer or admission letters.',
+    title: `Profile update ${year}`,
+    message: 'Please review your profile — what you are doing now, exams cleared, achievements — and upload any new offer or admission letters.',
     audience: 'alumni' as DriveAudience,
     programme: '',
     graduationYear: '',
@@ -892,6 +933,20 @@ function InsightsTab({ records, programmes }: { records: StudentRecord[]; progra
   const exams = topCounts(scoped.flatMap((r) => r.exams.filter((e) => e.result === 'qualified').map((e) => (e.exam === 'OTHERS' ? e.otherName : e.exam))))
   const areas = ACHIEVEMENT_AREAS.map((a) => ({ label: a, count: scoped.filter((r) => areasOf(r).includes(a)).length })).filter((a) => a.count > 0).sort((a, b) => b.count - a.count)
 
+  // What current students are up to, by year of study.
+  const current = scoped.filter((r) => studyYearOf(r).index > 0)
+  const years = [1, 2, 3].map((index) => {
+    const list = current.filter((r) => Math.min(studyYearOf(r).index, 3) === index)
+    return {
+      index,
+      total: list.length,
+      active: list.filter((r) => r.activities.some((a) => a.ongoing)).length,
+      achievements: list.reduce((sum, r) => sum + r.achievements.length, 0),
+      interned: list.filter((r) => r.internships.length > 0).length,
+    }
+  })
+  const activityKinds = topCounts(current.flatMap((r) => r.activities.filter((a) => a.ongoing).map((a) => a.kind)), 8)
+
   return (
     <div className="space-y-6">
       <section className="card flex flex-wrap items-end justify-between gap-3">
@@ -914,20 +969,45 @@ function InsightsTab({ records, programmes }: { records: StudentRecord[]; progra
       </section>
 
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile tint={TINTS[3]} label="Alumni on record" value={totals.total} note={`${totals.unknown} haven't reported an outcome`} />
-        <StatTile tint={TINTS[2]} label="Higher studies" value={`${pct(totals.hs, totals.total)}%`} note={`${totals.hs} alumni`} />
-        <StatTile tint={TINTS[0]} label="Placed / employed" value={`${pct(totals.job, totals.total)}%`} note={`${totals.job} alumni`} />
+        <StatTile tint={TINTS[3]} label="Graduates on record" value={totals.total} note={`${totals.unknown} haven't reported an outcome`} />
+        <StatTile tint={TINTS[2]} label="Higher studies" value={`${pct(totals.hs, totals.total)}%`} note={`${totals.hs} graduates`} />
+        <StatTile tint={TINTS[0]} label="Placed / employed" value={`${pct(totals.job, totals.total)}%`} note={`${totals.job} graduates`} />
         <StatTile tint={TINTS[1]} label="Median package" value={medianAll === null ? '—' : `₹${medianAll} LPA`} note={`From ${packages.length} reported packages`} />
+      </section>
+
+      <section className="card">
+        <p className="eyebrow">Current students</p>
+        <h2 className="text-2xl font-black mt-1">What each year is doing</h2>
+        <p className="text-sm text-ink-muted mt-1 mb-4">From students' own profiles — clubs, projects, courses and exam preparation they've marked as ongoing.</p>
+        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-6">
+          <div className="grid sm:grid-cols-3 gap-3">
+            {years.map((y) => (
+              <div key={y.index} className={`card-tint ${TINTS[y.index]}`}>
+                <p className="text-sm font-semibold">{['', '1st', '2nd', '3rd'][y.index]} year</p>
+                <p className="text-3xl font-black mt-1">{y.total}</p>
+                <ul className="text-xs text-ink/70 mt-2 space-y-0.5">
+                  <li>{y.active} doing an activity</li>
+                  <li>{y.achievements} achievement{y.achievements === 1 ? '' : 's'}</li>
+                  <li>{y.interned} did an internship</li>
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div>
+            <h3 className="font-bold mb-3">Ongoing activities by type</h3>
+            <BarList items={activityKinds} />
+          </div>
+        </div>
       </section>
 
       <section className="card overflow-hidden">
         <p className="eyebrow">Graduation outcomes</p>
         <h2 className="text-2xl font-black mt-1">By graduating batch</h2>
         <p className="text-sm text-ink-muted mt-1 mb-4">
-          Shares are of alumni on record in that batch. Use the export for NIRF “Graduation Outcomes” and NAAC criterion 5.
+          Shares are of graduates on record in that batch. Use the export for NIRF “Graduation Outcomes” and NAAC criterion 5.
         </p>
         {summaries.length === 0 ? (
-          <p className="text-sm text-ink-muted">No alumni records yet.</p>
+          <p className="text-sm text-ink-muted">No graduates on record yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="table min-w-[820px]">
@@ -970,23 +1050,23 @@ function InsightsTab({ records, programmes }: { records: StudentRecord[]; progra
 
       <section className="grid lg:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="font-extrabold text-lg">Where alumni study now</h3>
+          <h3 className="font-extrabold text-lg">Where graduates study now</h3>
           <p className="text-sm text-ink-muted mb-4">Institutes for current higher studies</p>
           <BarList items={institutions} />
         </div>
         <div className="card">
-          <h3 className="font-extrabold text-lg">Where alumni work now</h3>
+          <h3 className="font-extrabold text-lg">Where graduates work now</h3>
           <p className="text-sm text-ink-muted mb-4">Current employers</p>
           <BarList items={employers} />
         </div>
         <div className="card">
           <h3 className="font-extrabold text-lg">Competitive exams cleared</h3>
-          <p className="text-sm text-ink-muted mb-4">Students & alumni who passed each exam</p>
+          <p className="text-sm text-ink-muted mb-4">Students and graduates who passed each exam</p>
           <BarList items={exams} />
         </div>
         <div className="card">
           <h3 className="font-extrabold text-lg">Where students excel</h3>
-          <p className="text-sm text-ink-muted mb-4">Students & alumni with at least one achievement in each area</p>
+          <p className="text-sm text-ink-muted mb-4">Students with at least one achievement in each area</p>
           <BarList items={areas} />
         </div>
       </section>
@@ -1036,11 +1116,11 @@ function ImportModal({ existing, onClose, onImported }: { existing: StudentRecor
   }
 
   return (
-    <Modal title="Import records from a spreadsheet" onClose={onClose}>
+    <Modal title="Import profiles from a spreadsheet" onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm text-ink-muted">
           Already keep alumni data in Excel or Google Sheets? Save it as CSV with the template's column names (they match the paper form) and import it.
-          Students claim their record automatically when they sign up with the same college or personal email.
+          A student's profile is linked automatically when they sign up with the same college or personal email.
         </p>
         <button type="button" className="btn-outline text-sm" onClick={() => downloadCsv('alumni-records-template.csv', recordTemplateCsv())}>
           ⬇ Download template

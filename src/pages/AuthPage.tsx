@@ -27,21 +27,14 @@ import {
   hasDemoData,
   DEMO_PASSWORD,
   DEMO_LOGINS,
+  DEMO_LOGIN_NOTES,
 } from '../services/demoseed'
 import TeacherSubjectPicker from '../components/TeacherSubjectPicker'
 import StudentProgramPicker from '../components/StudentProgramPicker'
-import {
-  RECORD_PROGRAMMES,
-  graduationYearOptions,
-} from '../data/recordOptions'
 
 function routeForRole(role: Role) {
   return homeForRole(role)
 }
-
-const ALUMNI_YEARS = graduationYearOptions().filter(
-  (year) => Number(year) <= new Date().getFullYear()
-)
 
 export default function AuthPage() {
   const navigate = useNavigate()
@@ -57,15 +50,9 @@ export default function AuthPage() {
     useState('')
 
   const [role, setRole] =
-    useState<'student' | 'teacher' | 'alumni'>(
+    useState<'student' | 'teacher'>(
       'student'
     )
-
-  const [alumniProgram, setAlumniProgram] =
-    useState('')
-
-  const [alumniYear, setAlumniYear] =
-    useState('')
 
   const [studentProgram, setStudentProgram] =
     useState('')
@@ -175,8 +162,6 @@ export default function AuthPage() {
       setStudentProgram('')
       setStudentYear('')
       setTeacherSubjects([])
-      setAlumniProgram('')
-      setAlumniYear('')
     }
   }
 
@@ -392,47 +377,6 @@ export default function AuthPage() {
           return
         }
 
-        if (role === 'alumni') {
-          if (!alumniProgram || !alumniYear) {
-            throw new Error(
-              'Please select your course and graduation year.'
-            )
-          }
-
-          const profile =
-            await signUp(
-              name.trim(),
-              email.trim(),
-              password,
-              'alumni',
-              {
-                enrolledCourseIds: [
-                  alumniProgram,
-                ],
-                year: 'Alumni',
-                graduationYear: alumniYear,
-              }
-            )
-
-          setUser(profile)
-
-          push(
-            'Welcome back to Maitreyi!',
-            'success'
-          )
-
-          navigate(
-            routeForRole(
-              profile.role
-            ),
-            {
-              replace: true,
-            }
-          )
-
-          return
-        }
-
         if (
           role === 'teacher' &&
           teacherSubjects.length === 0
@@ -633,8 +577,8 @@ export default function AuthPage() {
 
         <p className="text-ink/70 mt-1">
           {mode === 'login'
-            ? 'Log in to track attendance and keep your student & alumni record up to date.'
-            : 'Students and teachers track attendance; students and alumni keep one record of their journey.'}
+            ? 'Log in to track attendance and keep your student profile up to date.'
+            : 'One login for your whole time at Maitreyi — attendance now, and a profile that stays with you after you graduate.'}
         </p>
       </div>
 
@@ -648,10 +592,9 @@ export default function AuthPage() {
           <>
             <p className="text-sm text-ink/70 mb-3">
               One-time setup: creates demo
-              accounts with sample attendance,
-              student records and alumni
-              records, stored only in this
-              browser.
+              accounts with sample attendance
+              and student profiles, stored
+              only in this browser.
             </p>
 
             <button
@@ -674,35 +617,28 @@ export default function AuthPage() {
               that dashboard.
             </p>
 
-            <div className="grid sm:grid-cols-3 gap-3">
+            <div className="grid sm:grid-cols-[2fr_1fr] gap-3">
               <div>
                 <div className="text-xs font-semibold text-ink/50 mb-1">
-                  STUDENTS · CR STATUS IS LIVE
+                  STUDENTS · SAME LOGIN BEFORE AND AFTER GRADUATION
                 </div>
 
-                {DEMO_LOGINS
-                  .filter((item) =>
-                    [
-                      'Aarav Sharma',
-                      'Priya Nair',
-                      'Rohan Verma',
-                    ].includes(item.name)
-                  )
-                  .map((item) => (
-                    <button
-                      key={item.email}
-                      type="button"
-                      disabled={busy}
-                      className="btn-outline w-full mb-1 text-sm"
-                      onClick={() =>
-                        handleDemoLogin(
-                          item.email
-                        )
-                      }
-                    >
-                      {item.name}
-                    </button>
-                  ))}
+                <div className="grid sm:grid-cols-2 gap-x-2">
+                  {DEMO_LOGINS
+                    .filter((item) => item.role === 'student')
+                    .map((item) => (
+                      <button
+                        key={item.email}
+                        type="button"
+                        disabled={busy}
+                        className="btn-outline w-full mb-1 text-sm"
+                        onClick={() => handleDemoLogin(item.email)}
+                      >
+                        {item.name}
+                        <span className="font-normal opacity-70"> · {DEMO_LOGIN_NOTES[item.email]}</span>
+                      </button>
+                    ))}
+                </div>
               </div>
 
               <div>
@@ -711,50 +647,14 @@ export default function AuthPage() {
                 </div>
 
                 {DEMO_LOGINS
-                  .filter(
-                    (item) =>
-                      item.role ===
-                      'teacher'
-                  )
+                  .filter((item) => item.role === 'teacher')
                   .map((item) => (
                     <button
                       key={item.email}
                       type="button"
                       disabled={busy}
                       className="btn-outline w-full mb-1 text-sm"
-                      onClick={() =>
-                        handleDemoLogin(
-                          item.email
-                        )
-                      }
-                    >
-                      {item.name}
-                    </button>
-                  ))}
-              </div>
-
-              <div>
-                <div className="text-xs font-semibold text-ink/50 mb-1">
-                  ALUMNI
-                </div>
-
-                {DEMO_LOGINS
-                  .filter(
-                    (item) =>
-                      item.role ===
-                      'alumni'
-                  )
-                  .map((item) => (
-                    <button
-                      key={item.email}
-                      type="button"
-                      disabled={busy}
-                      className="btn-outline w-full mb-1 text-sm"
-                      onClick={() =>
-                        handleDemoLogin(
-                          item.email
-                        )
-                      }
+                      onClick={() => handleDemoLogin(item.email)}
                     >
                       {item.name}
                     </button>
@@ -930,16 +830,11 @@ export default function AuthPage() {
                           .value as
                           | 'student'
                           | 'teacher'
-                          | 'alumni'
                       )
                     }
                   >
                     <option value="student">
                       Student
-                    </option>
-
-                    <option value="alumni">
-                      Alumni (graduated)
                     </option>
 
                     <option value="teacher">
@@ -968,79 +863,6 @@ export default function AuthPage() {
                       setStudentYear
                     }
                   />
-                )}
-
-                {role ===
-                  'alumni' && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium">
-                        Course you graduated in
-                      </label>
-
-                      <select
-                        className="input"
-                        value={alumniProgram}
-                        onChange={(event) =>
-                          setAlumniProgram(
-                            event.target.value
-                          )
-                        }
-                      >
-                        <option value="">
-                          Select course
-                        </option>
-                        {RECORD_PROGRAMMES.map(
-                          (programme) => (
-                            <option
-                              key={programme}
-                              value={programme}
-                            >
-                              {programme}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium">
-                        Graduation year
-                      </label>
-
-                      <select
-                        className="input"
-                        value={alumniYear}
-                        onChange={(event) =>
-                          setAlumniYear(
-                            event.target.value
-                          )
-                        }
-                      >
-                        <option value="">
-                          Select year
-                        </option>
-                        {ALUMNI_YEARS.map(
-                          (year) => (
-                            <option
-                              key={year}
-                              value={year}
-                            >
-                              {year}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </div>
-
-                    <p className="text-xs text-ink/60">
-                      Use the college or personal
-                      email you gave the department.
-                      If your paper form has already
-                      been digitised, it is linked to
-                      your account automatically.
-                    </p>
-                  </div>
                 )}
 
                 {role ===

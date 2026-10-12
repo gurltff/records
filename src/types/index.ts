@@ -2,7 +2,6 @@ export type Role =
   | 'student'
   | 'teacher'
   | 'cr'
-  | 'alumni'
 
 export interface UserProfile {
   uid: string
@@ -16,7 +15,8 @@ export interface UserProfile {
   year?: string
 
   /*
-   * Alumni only: the year they graduated (e.g. "2026").
+   * Set once a student's batch has graduated (e.g. "2026").
+   * They keep the same student login.
    */
   graduationYear?: string
 

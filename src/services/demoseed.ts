@@ -17,7 +17,8 @@ export const DEMO_TEACHER_SEEDS = [
   { name: 'Ms. Kapoor', email: 'kapoor.demo@example.com' },
 ]
 
-export const DEMO_ALUMNI_SEEDS = [
+/* Students who have already graduated — same student login, profile marked graduated. */
+export const DEMO_GRADUATE_SEEDS = [
   { name: 'Ananya Iyer', email: 'ananya.demo@example.com', programme: 'B.Sc. (Hons) Mathematics', graduationYear: '2025' },
   { name: 'Kavya Menon', email: 'kavya.demo@example.com', programme: 'B.Com (Hons)', graduationYear: '2024' },
 ]
@@ -25,8 +26,19 @@ export const DEMO_ALUMNI_SEEDS = [
 export const DEMO_LOGINS = [
   ...DEMO_STUDENT_SEEDS.map((x) => ({ ...x, role: 'student' as const })),
   ...DEMO_TEACHER_SEEDS.map((x) => ({ ...x, role: 'teacher' as const })),
-  ...DEMO_ALUMNI_SEEDS.map((x) => ({ name: x.name, email: x.email, role: 'alumni' as const })),
+  ...DEMO_GRADUATE_SEEDS.map((x) => ({ name: x.name, email: x.email, role: 'student' as const })),
 ]
+
+/* One-line description shown under each demo login button. */
+export const DEMO_LOGIN_NOTES: Record<string, string> = {
+  'aarav.demo@example.com': '2nd year · class rep',
+  'priya.demo@example.com': '2nd year',
+  'rohan.demo@example.com': '2nd year · no profile yet',
+  'ananya.demo@example.com': 'graduated 2025',
+  'kavya.demo@example.com': 'graduated 2024',
+  'mehta.demo@example.com': 'teacher',
+  'kapoor.demo@example.com': 'teacher',
+}
 
 export const DEMO_PROGRAM = 'B.Sc. (Hons) Physics'
 export const DEMO_YEAR = 'Second Year'
@@ -186,22 +198,22 @@ export async function setupDemoData(onProgress?: (message: string) => void) {
   }
   await put('announcements', announcement)
 
-  progress('Creating alumni accounts…')
-  const alumni: UserProfile[] = []
-  for (const seed of DEMO_ALUMNI_SEEDS) {
-    const account = await ensureDemoAccount(seed.name, seed.email, DEMO_PASSWORD, 'alumni', {
+  progress('Creating graduated students…')
+  const graduates: UserProfile[] = []
+  for (const seed of DEMO_GRADUATE_SEEDS) {
+    const account = await ensureDemoAccount(seed.name, seed.email, DEMO_PASSWORD, 'student', {
       enrolledCourseIds: [seed.programme],
-      year: 'Alumni',
+      year: 'Third Year',
       graduationYear: seed.graduationYear,
     })
     await put('users', { ...account, id: account.uid })
-    alumni.push(account)
+    graduates.push(account)
   }
 
-  progress('Creating student & alumni records…')
+  progress('Creating student profiles…')
   await seedRecords({
     students,
-    alumni,
+    graduates,
     teacher: { ...mehta, role: 'teacher' },
     studyYear: DEMO_YEAR,
     studentProgramme: DEMO_PROGRAM,

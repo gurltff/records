@@ -175,7 +175,7 @@ export function notifyLocalAuthChanged() {
 }
 
 function validateRole(role: Role) {
-  if (!['student', 'teacher', 'cr', 'alumni'].includes(role)) {
+  if (!['student', 'teacher', 'cr'].includes(role)) {
     throw new Error('Invalid user role.')
   }
 }
@@ -667,7 +667,7 @@ export async function ensureDemoAccount(
   name: string,
   email: string,
   password: string,
-  role: 'student' | 'teacher' | 'alumni',
+  role: 'student' | 'teacher',
   options?: {
     enrolledCourseIds?: string[]
     assignedCourseIds?: string[]

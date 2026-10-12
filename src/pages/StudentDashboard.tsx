@@ -7,14 +7,25 @@ import Overview from '../components/student/Overview'
 import AutoTimetable from '../components/student/AutoTimetable'
 import MarkPresence from '../components/student/MarkPresence'
 import History from '../components/student/History'
-import MyRecord from '../components/records/MyRecord'
-import AlumniNetwork from '../components/records/AlumniNetwork'
+import ProfileGate, { useMyProfile } from '../components/profile/ProfileGate'
+import MyProfile from '../components/profile/MyProfile'
+import Explore from '../components/profile/Explore'
 
-type Tab = 'overview' | 'timetable' | 'mark' | 'history' | 'record' | 'network'
+type Tab = 'profile' | 'overview' | 'timetable' | 'mark' | 'history' | 'explore'
 
 export default function StudentDashboard() {
+  return (
+    <ProfileGate>
+      <StudentHome />
+    </ProfileGate>
+  )
+}
+
+function StudentHome() {
   const { user, setUser } = useAuth()
-  const [tab, setTab] = useState<Tab>('overview')
+  const { profile } = useMyProfile()
+  const graduated = profile.status === 'alumni'
+  const [tab, setTab] = useState<Tab>('profile')
   const [records, setRecords] = useState<AttendanceRecord[]>([])
 
   async function refreshRecords() {
@@ -27,14 +38,20 @@ export default function StudentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'timetable', label: 'Timetable' },
-    { key: 'mark', label: 'Mark My Presence' },
-    { key: 'history', label: 'History' },
-    { key: 'record', label: 'My Record' },
-    { key: 'network', label: 'Alumni Network' },
-  ]
+  // Graduated students keep their login; attendance no longer applies to them.
+  const tabs: { key: Tab; label: string }[] = graduated
+    ? [
+        { key: 'profile', label: 'My Profile' },
+        { key: 'explore', label: 'Explore' },
+      ]
+    : [
+        { key: 'profile', label: 'My Profile' },
+        { key: 'overview', label: 'Attendance' },
+        { key: 'timetable', label: 'Timetable' },
+        { key: 'mark', label: 'Mark My Presence' },
+        { key: 'history', label: 'History' },
+        { key: 'explore', label: 'Explore' },
+      ]
 
   const programName = user?.enrolledCourseIds?.[0]
 
@@ -57,24 +74,19 @@ export default function StudentDashboard() {
 
   return (
     <main className="page-shell">
-      <h1 className="text-xl font-bold mb-1">Hi {user?.name} 👋</h1>
-      {programName && (
-        <p className="text-sm text-slate-500 mb-4">
-          Enrolled in: <b>{programName}</b>{user?.year ? <> · <b>{user.year}</b></> : null}
-        </p>
-      )}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`btn-outline whitespace-nowrap ${tab === t.key ? 'bg-ink text-cream-soft' : ''}`}
+            className={`btn-outline whitespace-nowrap ${tab === t.key ? 'is-active' : ''}`}
           >
             {t.label}
           </button>
         ))}
       </div>
 
+      {tab === 'profile' && <MyProfile />}
       {tab === 'overview' && (
         <Overview courses={courses} records={records} programName={programName} year={user?.year} />
       )}
@@ -83,8 +95,7 @@ export default function StudentDashboard() {
       )}
       {tab === 'mark' && <MarkPresence courses={courses} onSaved={refreshRecords} />}
       {tab === 'history' && <History records={records} courses={courses} />}
-      {tab === 'record' && <MyRecord />}
-      {tab === 'network' && <AlumniNetwork />}
+      {tab === 'explore' && <Explore />}
     </main>
   )
 }

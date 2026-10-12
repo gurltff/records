@@ -106,7 +106,6 @@ export function Navbar() {
 export function homeForRole(role?: Role) {
   if (role === 'cr') return '/cr'
   if (role === 'teacher') return '/teacher'
-  if (role === 'alumni') return '/alumni'
   return '/student'
 }
 

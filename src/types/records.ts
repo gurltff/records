@@ -1,8 +1,9 @@
 import type { Role } from './index'
 
 /*
- * One StudentRecord per student, kept from admission through alumni life.
- * The fields mirror the paper "Alumni Database form" so departments can
+ * One StudentRecord per student — their profile — kept from first year
+ * through graduation and after, on the same student login. It contains
+ * every field of the paper "Alumni Database form" so departments can
  * digitise existing forms one-to-one.
  */
 
@@ -109,6 +110,28 @@ export interface Achievement {
   description: string
 }
 
+export type ActivityKind =
+  | 'Club / society'
+  | 'Project'
+  | 'Course / certification'
+  | 'Exam preparation'
+  | 'Volunteering'
+  | 'Part-time work'
+  | 'Startup / venture'
+  | 'Other'
+
+/* Something the student is doing now (or did): a club, project, course… */
+export interface Activity {
+  id: string
+  title: string
+  kind: ActivityKind
+  organisation: string
+  /* yyyy-mm */
+  since: string
+  ongoing: boolean
+  description: string
+}
+
 export type CurrentActivity =
   | ''
   | 'preparing'
@@ -134,6 +157,9 @@ export interface StudentRecord {
   graduationYear: string
   status: RecordStatus
 
+  /* One line about the student, shown at the top of their profile. */
+  bio: string
+
   collegeEmail: string
   /* College mailboxes expire after graduation, so this keeps us in touch. */
   personalEmail: string
@@ -147,12 +173,16 @@ export interface StudentRecord {
   activity: CurrentActivity
   activityNote: string
 
+  /* What they are doing now: clubs, projects, courses, exam prep… */
+  activities: Activity[]
+
   exams: ExamResult[]
   achievements: Achievement[]
   interests: string[]
 
   /* Replaces the signature on the paper form. */
   consent: boolean
+  /* Visible to other students on Explore. */
   directoryOptIn: boolean
   shareContact: boolean
 
@@ -264,7 +294,7 @@ export interface UpdateDrive {
 }
 
 /*
- * Public, opt-in subset of a record shown in the alumni network.
+ * Public, opt-in subset of a profile shown on Explore.
  * Kept in its own collection so classmates never read phone numbers,
  * roll numbers or documents.
  */
@@ -273,9 +303,15 @@ export interface DirectoryProfile {
   recordId: string
   name: string
   programme: string
+  admissionYear: string
   graduationYear: string
   status: RecordStatus
+  bio: string
   headline: string
+  /* Ongoing activities and current course/job, e.g. "Preparing for CAT". */
+  doingNow: string[]
+  /* A few recent achievements. */
+  highlights: string[]
   areas: AchievementArea[]
   interests: string[]
   contactEmail: string

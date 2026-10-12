@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 
 import {
   AuthenticatedRoute,
@@ -7,7 +7,6 @@ import {
   ToastProvider,
 } from './components/Shared'
 
-import AlumniDashboard from './pages/AlumniDashboard'
 import AuthPage from './pages/AuthPage'
 import CRDashboard from './pages/CRDashboard'
 import PrintRecord from './pages/PrintRecord'
@@ -66,7 +65,7 @@ export default function App() {
             }
           />
 
-          {/* TEACHER - STUDENT & ALUMNI RECORDS */}
+          {/* TEACHER - STUDENT PROFILES */}
           <Route
             path="/teacher/records"
             element={
@@ -76,14 +75,10 @@ export default function App() {
             }
           />
 
-          {/* ALUMNI */}
+          {/* Old link from the alumni-login version: graduates use /student. */}
           <Route
             path="/alumni"
-            element={
-              <ProtectedRoute role="alumni">
-                <AlumniDashboard />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/student" replace />}
           />
 
           {/* PRINTABLE ALUMNI DATABASE FORM */}

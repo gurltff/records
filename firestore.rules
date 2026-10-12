@@ -50,7 +50,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.auth.uid == uid
         && request.resource.data.role
-          in ['student', 'teacher', 'alumni'];
+          in ['student', 'teacher'];
 
       /*
        * User can update their own profile,
@@ -74,11 +74,6 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['assignedCourseIds'])
             )
-            || (
-              resource.data.role == 'alumni'
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['graduationYear'])
-            )
           )
         )
         ||
@@ -87,7 +82,7 @@ service cloud.firestore {
           && resource.data.role
              in ['student', 'cr']
           && request.resource.data.role
-             in ['student', 'cr', 'alumni']
+             in ['student', 'cr']
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
               'role',
@@ -260,7 +255,7 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // STUDENT & ALUMNI RECORDS
+    // STUDENT PROFILES (one per student, kept after graduation)
     // =====================================================
 
     function isTeacher() {
@@ -297,7 +292,7 @@ service cloud.firestore {
       allow create: if signedIn() && (
         isTeacher()
         || (
-          myRole() in ['student', 'cr', 'alumni']
+          myRole() in ['student', 'cr']
           && request.resource.data.ownerUid == request.auth.uid
         )
       );
@@ -394,7 +389,7 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
-    // Opt-in alumni network: public subset only, written by its owner.
+    // Explore: opt-in public card of a profile, written by its owner.
     match /directoryProfiles/{uid} {
       allow read: if signedIn();
       allow create, update: if signedIn()

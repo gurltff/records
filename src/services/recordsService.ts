@@ -4,10 +4,13 @@ import {
   areasOf,
   batchFromStudyYear,
   changedSections,
+  doingNow,
   emptyRecord,
   fingerprint,
   headline,
   newId,
+  normaliseRecord,
+  pruneEmpty,
 } from '../utils/records'
 import type {
   DirectoryProfile,
@@ -57,12 +60,13 @@ async function log(recordId: string, actor: Actor, action: RecordAction, summary
    RECORDS
    ========================================================= */
 
-export function listRecords() {
-  return getAll<StudentRecord>(RECORDS)
+export async function listRecords() {
+  return (await getAll<StudentRecord>(RECORDS)).map(normaliseRecord)
 }
 
-export function getRecord(id: string) {
-  return getById<StudentRecord>(RECORDS, id)
+export async function getRecord(id: string) {
+  const record = await getById<StudentRecord>(RECORDS, id)
+  return record ? normaliseRecord(record) : null
 }
 
 /*
@@ -71,7 +75,7 @@ export function getRecord(id: string) {
  */
 export async function findRecordForUser(user: UserProfile): Promise<StudentRecord | null> {
   const owned = await getWhere<StudentRecord>(RECORDS, 'ownerUid', user.uid)
-  if (owned.length > 0) return owned.sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  if (owned.length > 0) return normaliseRecord(owned.sort((a, b) => b.updatedAt - a.updatedAt)[0])
 
   const email = user.email.trim().toLowerCase()
   if (!email) return null
@@ -80,7 +84,7 @@ export async function findRecordForUser(user: UserProfile): Promise<StudentRecor
     const matches = await getWhere<StudentRecord>(RECORDS, field, email)
     const unclaimed = matches.find((r) => !r.ownerUid)
     if (unclaimed) {
-      const claimed: StudentRecord = { ...unclaimed, ownerUid: user.uid }
+      const claimed: StudentRecord = normaliseRecord({ ...unclaimed, ownerUid: user.uid })
       await put(RECORDS, claimed)
       await log(claimed.id, actorOf(user), 'claimed', `Linked to ${user.name}'s account`)
       return claimed
@@ -89,13 +93,9 @@ export async function findRecordForUser(user: UserProfile): Promise<StudentRecor
   return null
 }
 
-/* A new, unsaved record pre-filled from the account profile. */
+/* A new, unsaved profile pre-filled from the account. */
 export function draftRecordForUser(user: UserProfile): StudentRecord {
   const programme = user.enrolledCourseIds?.[0]?.split('::')[0] ?? ''
-  const isAlumni = user.role === 'alumni'
-  const batch = isAlumni
-    ? { admissionYear: user.graduationYear ? String(Number(user.graduationYear) - 3) : '', graduationYear: user.graduationYear ?? '' }
-    : batchFromStudyYear(user.year)
   const email = user.email.trim().toLowerCase()
   const looksPersonal = /@(gmail|yahoo|outlook|hotmail|icloud|proton)\./.test(email)
 
@@ -104,10 +104,10 @@ export function draftRecordForUser(user: UserProfile): StudentRecord {
     ownerUid: user.uid,
     name: user.name,
     programme,
-    ...batch,
-    status: isAlumni ? 'alumni' : 'current',
+    ...batchFromStudyYear(user.year),
+    status: 'current',
     collegeEmail: looksPersonal ? '' : email,
-    personalEmail: looksPersonal || isAlumni ? email : '',
+    personalEmail: looksPersonal ? email : '',
     source: 'self',
   })
 }
@@ -117,8 +117,9 @@ export interface SaveResult {
   changed: string[]
 }
 
-export async function saveRecord(next: StudentRecord, prev: StudentRecord | null, actor: Actor): Promise<SaveResult> {
-  const changed = prev ? changedSections(prev, next) : ['Record created']
+export async function saveRecord(draft: StudentRecord, prev: StudentRecord | null, actor: Actor): Promise<SaveResult> {
+  const next = pruneEmpty(draft)
+  const changed = prev ? changedSections(prev, next) : ['Profile created']
   if (prev && changed.length === 0) return { record: prev, changed }
 
   const now = Date.now()
@@ -131,7 +132,7 @@ export async function saveRecord(next: StudentRecord, prev: StudentRecord | null
     createdAt: prev ? prev.createdAt : now,
   }
   await put(RECORDS, record)
-  await log(record.id, actor, prev ? 'updated' : 'created', prev ? `Updated ${changed.join(', ')}` : 'Record created')
+  await log(record.id, actor, prev ? 'updated' : 'created', prev ? `Updated ${changed.join(', ')}` : 'Profile created')
   await syncDirectory(record, actor)
   return { record, changed }
 }
@@ -160,20 +161,23 @@ export async function importRecords(records: StudentRecord[], actor: Actor, labe
   }
 }
 
-/* Moves a batch to alumni and switches linked accounts to the alumni dashboard. */
+/*
+ * Marks a batch's profiles as graduated. Students keep the same login;
+ * their account only records the graduation year (a CR stops being CR).
+ */
 export async function graduateBatch(records: StudentRecord[], programme: string, graduationYear: string, actor: Actor) {
   const batch = records.filter(
     (r) => r.status === 'current' && r.graduationYear === graduationYear && (!programme || r.programme === programme),
   )
   for (const record of batch) {
     await put(RECORDS, { ...record, status: 'alumni' })
-    await log(record.id, actor, 'graduated', `Moved to alumni (batch ${graduationYear})`)
+    await log(record.id, actor, 'graduated', `Marked as graduated (batch ${graduationYear})`)
     if (record.ownerUid) {
       const account = await getById<UserProfile>('users', record.ownerUid)
       if (account && (account.role === 'student' || account.role === 'cr')) {
-        const alumniProfile: UserProfile = { ...account, role: 'alumni', graduationYear }
-        await put('users', { ...alumniProfile, id: account.uid })
-        if (isDemoMode()) syncLocalUserProfile(alumniProfile)
+        const graduated: UserProfile = { ...account, role: 'student', graduationYear }
+        await put('users', { ...graduated, id: account.uid })
+        if (isDemoMode()) syncLocalUserProfile(graduated)
       }
     }
   }
@@ -184,31 +188,45 @@ export async function graduateBatch(records: StudentRecord[], programme: string,
    ALUMNI DIRECTORY (opt-in, public subset only)
    ========================================================= */
 
+/* The public card shown on Explore — no phone, roll number or documents. */
+export function directoryProfileOf(record: StudentRecord): DirectoryProfile {
+  return {
+    id: record.ownerUid ?? record.id,
+    recordId: record.id,
+    name: record.name,
+    programme: record.programme,
+    admissionYear: record.admissionYear,
+    graduationYear: record.graduationYear,
+    status: record.status,
+    bio: record.bio,
+    headline: headline(record),
+    doingNow: doingNow(record),
+    highlights: record.achievements
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 3)
+      .map((a) => a.title)
+      .filter(Boolean),
+    areas: areasOf(record),
+    interests: record.interests,
+    contactEmail: record.shareContact ? record.personalEmail || record.collegeEmail : '',
+    updatedAt: record.updatedAt,
+  }
+}
+
 async function syncDirectory(record: StudentRecord, actor: Actor) {
   // Only the owner may publish or withdraw their own directory card.
   if (!record.ownerUid || record.ownerUid !== actor.uid) return
   if (record.consent && record.directoryOptIn) {
-    const profile: DirectoryProfile = {
-      id: record.ownerUid,
-      recordId: record.id,
-      name: record.name,
-      programme: record.programme,
-      graduationYear: record.graduationYear,
-      status: record.status,
-      headline: headline(record),
-      areas: areasOf(record),
-      interests: record.interests,
-      contactEmail: record.shareContact ? record.personalEmail || record.collegeEmail : '',
-      updatedAt: record.updatedAt,
-    }
-    await put(DIRECTORY, profile)
+    await put(DIRECTORY, directoryProfileOf(record))
   } else {
     await remove(DIRECTORY, record.ownerUid).catch(() => undefined)
   }
 }
 
-export function listDirectory() {
-  return getAll<DirectoryProfile>(DIRECTORY)
+export async function listDirectory() {
+  const profiles = await getAll<Partial<DirectoryProfile>>(DIRECTORY)
+  return profiles.map((p) => ({ bio: '', doingNow: [], highlights: [], admissionYear: '', ...p }) as DirectoryProfile)
 }
 
 /* =========================================================

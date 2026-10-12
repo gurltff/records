@@ -5,8 +5,9 @@ import { create, getAll, getWhere, put, remove } from '../services/store'
 import { useToast } from '../components/Shared'
 import MarkPresence from '../components/student/MarkPresence'
 import AutoTimetable from '../components/student/AutoTimetable'
-import MyRecord from '../components/records/MyRecord'
-import AlumniNetwork from '../components/records/AlumniNetwork'
+import ProfileGate from '../components/profile/ProfileGate'
+import MyProfile from '../components/profile/MyProfile'
+import Explore from '../components/profile/Explore'
 
 import {
   SCHEDULE_DATA,
@@ -30,8 +31,8 @@ type Tab =
   | 'history'
   | 'class'
   | 'announcements'
-  | 'record'
-  | 'network'
+  | 'profile'
+  | 'explore'
 
 function getProgram(user: UserProfile) {
   const value = user.enrolledCourseIds?.[0] ?? ''
@@ -65,6 +66,14 @@ function announcementCategory(
 }
 
 export default function CRDashboard() {
+  return (
+    <ProfileGate>
+      <CRHome />
+    </ProfileGate>
+  )
+}
+
+function CRHome() {
   const { user, setUser } = useAuth()
   const { push } = useToast()
 
@@ -478,12 +487,12 @@ export default function CRDashboard() {
       label: 'Announcements',
     },
     {
-      id: 'record',
-      label: 'My Record',
+      id: 'profile',
+      label: 'My Profile',
     },
     {
-      id: 'network',
-      label: 'Alumni Network',
+      id: 'explore',
+      label: 'Explore',
     },
   ]
 
@@ -1303,9 +1312,9 @@ export default function CRDashboard() {
             </section>
           )}
 
-          {activeTab === 'record' && <MyRecord />}
+          {activeTab === 'profile' && <MyProfile />}
 
-          {activeTab === 'network' && <AlumniNetwork />}
+          {activeTab === 'explore' && <Explore />}
         </>
       )}
     </main>

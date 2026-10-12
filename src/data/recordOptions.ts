@@ -1,6 +1,7 @@
 import { SCHEDULE_DATA } from './scheduleData'
 import type {
   AchievementArea,
+  ActivityKind,
   AchievementLevel,
   CurrentActivity,
   DocumentKind,
@@ -60,6 +61,28 @@ export const ACHIEVEMENT_AREAS: AchievementArea[] = [
   'Certification',
   'Competition',
 ]
+
+export const ACTIVITY_KINDS: ActivityKind[] = [
+  'Club / society',
+  'Project',
+  'Course / certification',
+  'Exam preparation',
+  'Volunteering',
+  'Part-time work',
+  'Startup / venture',
+  'Other',
+]
+
+export const ACTIVITY_ICON: Record<ActivityKind, string> = {
+  'Club / society': '🎭',
+  Project: '🛠',
+  'Course / certification': '📘',
+  'Exam preparation': '🎯',
+  Volunteering: '🤝',
+  'Part-time work': '💼',
+  'Startup / venture': '🚀',
+  Other: '✦',
+}
 
 export const ACHIEVEMENT_LEVELS: AchievementLevel[] = [
   'College',

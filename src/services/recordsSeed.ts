@@ -1,23 +1,23 @@
-// Demo-only student & alumni records. Every person, phone number and email
+// Demo-only student profiles. Every person, phone number and email
 // here is fictional; organisations named "Northwind", "Contoso", "Fabrikam"
 // etc. are placeholder companies.
 import { put } from './store'
-import { DIRECTORY, DOCUMENTS, DRIVES, RECORDS, UPDATES, VERIFICATIONS } from './recordsService'
+import { DIRECTORY, DOCUMENTS, DRIVES, RECORDS, UPDATES, VERIFICATIONS, directoryProfileOf } from './recordsService'
 import {
-  areasOf,
+  academicYearOf,
   batchFromStudyYear,
   emptyAchievement,
+  emptyActivity,
   emptyEmployment,
   emptyExam,
   emptyHigherStudy,
   emptyInternship,
   emptyRecord,
   fingerprint,
-  headline,
 } from '../utils/records'
 import type {
   Achievement,
-  DirectoryProfile,
+  Activity,
   Employment,
   HigherStudy,
   Internship,
@@ -134,6 +134,33 @@ function makeAchievement(year: number): Achievement {
   return { ...emptyAchievement(), title, area, level, date: `${year}-02-15` }
 }
 
+const ACTIVITIES: [string, Activity['kind'], string][] = [
+  ['Member, Enactus Maitreyi', 'Club / society', 'Enactus'],
+  ['Preparing for CAT 2027', 'Exam preparation', ''],
+  ['Preparing for IIT JAM', 'Exam preparation', ''],
+  ['Learning Python for data analysis', 'Course / certification', 'NPTEL'],
+  ['Research project on rural credit', 'Project', 'Department of Economics'],
+  ['Editor, college magazine', 'Club / society', 'Literary society'],
+  ['NSS volunteer', 'Volunteering', 'National Service Scheme'],
+  ['Weekend maths tutor', 'Part-time work', ''],
+  ['Building a campus lost-and-found app', 'Project', ''],
+  ['Debating society', 'Club / society', 'Debating society'],
+]
+
+const BIOS = [
+  'Curious about numbers and the stories they tell.',
+  'Debater, reader, and future policy researcher.',
+  'Learning to code one project at a time.',
+  'Into finance, chai and long walks around campus.',
+  'Science nerd who loves teaching juniors.',
+  'Writing, editing and organising events.',
+]
+
+function makeActivity(year: number, template = pick(ACTIVITIES)): Activity {
+  const [title, kind, organisation] = template
+  return { ...emptyActivity(kind), title, organisation, since: `${year}-0${1 + Math.floor(rand() * 8)}`, ongoing: true }
+}
+
 function email(name: string, suffix: string) {
   return `${name.toLowerCase().replace(/[^a-z]+/g, '.')}.${suffix}@example.com`
 }
@@ -153,32 +180,35 @@ function sampleDocument(title: string, lines: string[]) {
 }
 
 interface SeedInput {
+  /* Demo student logins: the first two get profiles, the rest start without one. */
   students: UserProfile[]
-  alumni: UserProfile[]
+  /* Demo logins of students who have already graduated (same student role). */
+  graduates: UserProfile[]
   teacher: UserProfile
   studyYear: string
   studentProgramme: string
 }
 
-export async function seedRecords({ students, alumni, teacher, studyYear, studentProgramme }: SeedInput) {
+export async function seedRecords({ students, graduates, teacher, studyYear, studentProgramme }: SeedInput) {
   rand = mulberry32(2026)
   const now = Date.now()
+  const session = academicYearOf(new Date())
   const records: StudentRecord[] = []
   const updates: RecordUpdate[] = []
   const verifications: RecordVerification[] = []
   const documents: RecordDocument[] = []
-  const directory: DirectoryProfile[] = []
   let roll = 1
 
   const nextRoll = (admission: number) => `${String(admission).slice(2)}99000${String(roll++).padStart(3, '0')}`
 
   const logEntry = (record: StudentRecord, action: RecordUpdate['action'], summary: string, at: number, actor?: UserProfile) => {
+    const byTeacher = actor?.role === 'teacher' || (!actor && !record.ownerUid)
     updates.push({
       id: `demo_upd_${updates.length}`,
       recordId: record.id,
-      actorId: actor?.uid ?? record.ownerUid ?? teacher.uid,
-      actorName: actor?.name ?? (record.ownerUid ? record.name : teacher.name),
-      actorRole: actor?.role ?? (record.ownerUid ? 'student' : 'teacher'),
+      actorId: actor?.uid ?? (byTeacher ? teacher.uid : record.ownerUid!),
+      actorName: actor?.name ?? (byTeacher ? teacher.name : record.name),
+      actorRole: byTeacher ? 'teacher' : 'student',
       action,
       summary,
       at,
@@ -199,38 +229,54 @@ export async function seedRecords({ students, alumni, teacher, studyYear, studen
     logEntry(record, 'verified', `Verified ${itemKind === 'document' ? 'document' : 'entry'}`, at, teacher)
   }
 
-  /* --- Linked current students (the attendance demo accounts) --- */
+  /* --- Demo logins: current students (Rohan is left without a profile) --- */
   const studentBatch = batchFromStudyYear(studyYear)
-  students.forEach((student, i) => {
+  const admitted = Number(studentBatch.admissionYear)
+  students.slice(0, 2).forEach((student, i) => {
     const touched = now - (20 + i * 40) * DAY
     const record = emptyRecord({
       id: `rec_${student.uid}`,
       ownerUid: student.uid,
       name: student.name,
-      rollNo: nextRoll(Number(studentBatch.admissionYear)),
+      rollNo: nextRoll(admitted),
       programme: studentProgramme,
       ...studentBatch,
       status: 'current',
+      bio: i === 0 ? 'Class rep, physics enthusiast and amateur astronomer.' : 'Physics student who loves coding simulations.',
       collegeEmail: student.email,
       mobile: `+91 90000 1000${i}`,
       hadInternships: i === 1 ? 'yes' : 'no',
-      internships: i === 1 ? [makeInternship(Number(studentBatch.admissionYear) + 1)] : [],
-      achievements: [makeAchievement(Number(studentBatch.admissionYear) + 1)],
-      interests: [INTERESTS[i], INTERESTS[i + 2]],
+      internships: i === 1 ? [{ ...makeInternship(admitted + 1), title: 'Summer research intern', organisation: 'Centre for Research, Maitreyi College' }] : [],
+      activities:
+        i === 0
+          ? [
+              { ...emptyActivity('Club / society'), title: 'Class representative', organisation: 'B.Sc. (Hons) Physics', since: `${admitted + 1}-07` },
+              { ...emptyActivity('Exam preparation'), title: 'Preparing for IIT JAM', since: `${admitted + 1}-08` },
+            ]
+          : [
+              { ...emptyActivity('Project'), title: 'Simulating projectile motion in Python', since: `${admitted + 1}-08` },
+              { ...emptyActivity('Club / society'), title: 'Astronomy club', organisation: 'Astronomy society', since: `${admitted}-09` },
+            ],
+      achievements: [
+        { ...emptyAchievement(), title: i === 0 ? 'Second prize, inter-college physics quiz' : 'Finalist, national hackathon (team)', area: i === 0 ? 'Academics' : 'Competition', level: i === 0 ? 'University' : 'National', date: `${admitted + 1}-02-15` },
+        { ...emptyAchievement(), title: 'NSS volunteer — 60 hours', area: 'Social service', level: 'College', date: `${admitted}-11-20` },
+      ],
+      interests: i === 0 ? ['Research', 'Teaching'] : ['Data science', 'Research'],
       consent: true,
-      directoryOptIn: i === 1,
+      directoryOptIn: true,
+      shareContact: i === 1,
       source: 'self',
       createdAt: touched - 30 * DAY,
       updatedAt: touched,
       lastConfirmedAt: touched,
     })
     records.push(record)
-    logEntry(record, 'created', 'Record created', record.createdAt, student)
-    logEntry(record, 'updated', 'Updated Achievements & interests', touched, student)
+    logEntry(record, 'created', 'Profile created', record.createdAt, student)
+    logEntry(record, 'updated', 'Updated Doing now, Achievements & interests', touched, student)
   })
 
-  /* --- Linked alumni demo accounts --- */
-  const [ananya, kavya] = alumni
+  /* --- Demo logins: graduated students (same student login) --- */
+  const [ananya, kavya] = graduates
   if (ananya) {
     const touched = now - 400 * DAY
     const internship: Internship = {
@@ -252,27 +298,33 @@ export async function seedRecords({ students, alumni, teacher, studyYear, studen
       admissionYear: '2022',
       graduationYear: '2025',
       status: 'alumni',
+      bio: 'Maths graduate, now doing my M.Sc. Happy to help juniors with JAM prep.',
       collegeEmail: 'ananya.iyer.demo@college.example.edu',
       personalEmail: ananya.email,
       mobile: '+91 90000 20001',
       hadInternships: 'yes',
       internships: [internship],
       higherStudies: [study],
+      activities: [{ ...emptyActivity('Volunteering'), title: 'Mentoring juniors for IIT JAM', since: '2025-08' }],
       exams: [
         { ...emptyExam('JAM'), result: 'qualified', year: '2025', score: 'AIR 812' },
         { ...emptyExam('CUET-PG'), result: 'appeared', year: '2025' },
       ],
-      achievements: [{ ...emptyAchievement(), title: 'Paper presented at a national conference', area: 'Research', level: 'National', date: '2025-01-20' }],
+      achievements: [
+        { ...emptyAchievement(), title: 'Gold medal, inter-college mathematics olympiad', area: 'Academics', level: 'University', date: '2023-02-10' },
+        { ...emptyAchievement(), title: 'Paper presented at a national conference', area: 'Research', level: 'National', date: '2025-01-20' },
+      ],
       interests: ['Research', 'Teaching'],
       consent: true,
       directoryOptIn: true,
       shareContact: true,
-      createdAt: touched - 200 * DAY,
+      createdAt: touched - 600 * DAY,
       updatedAt: touched,
       lastConfirmedAt: touched,
     })
     records.push(record)
-    logEntry(record, 'created', 'Record created', record.createdAt, ananya)
+    logEntry(record, 'created', 'Profile created', record.createdAt, ananya)
+    logEntry(record, 'graduated', 'Marked as graduated (batch 2025)', touched - 60 * DAY, teacher)
     logEntry(record, 'updated', 'Updated Higher studies, Competitive exams', touched, ananya)
 
     const certificate: RecordDocument = {
@@ -326,71 +378,87 @@ export async function seedRecords({ students, alumni, teacher, studyYear, studen
       admissionYear: '2021',
       graduationYear: '2024',
       status: 'alumni',
+      bio: 'Commerce grad working in audit. Ask me about internships in finance.',
       collegeEmail: 'kavya.menon.demo@college.example.edu',
       personalEmail: kavya.email,
       mobile: '+91 90000 20002',
       hadInternships: 'yes',
       internships: [{ ...makeInternship(2023), title: 'Finance intern', organisation: 'Woodgrove Bank' }],
       employment: [job],
+      activities: [{ ...emptyActivity('Exam preparation'), title: 'Preparing for CAT 2026', since: '2026-03' }],
       exams: [{ ...emptyExam('CAT'), result: 'appeared', year: '2025', score: '88 percentile' }],
       achievements: [{ ...emptyAchievement(), title: 'President, Commerce society', area: 'Leadership', level: 'College', date: '2023-04-01' }],
       interests: ['Finance', 'Consulting'],
       consent: true,
       directoryOptIn: true,
       shareContact: false,
-      createdAt: touched - 300 * DAY,
+      createdAt: touched - 900 * DAY,
       updatedAt: touched,
       lastConfirmedAt: touched,
     })
     records.push(record)
-    logEntry(record, 'created', 'Record created', record.createdAt, kavya)
-    logEntry(record, 'updated', 'Updated Job', touched, kavya)
+    logEntry(record, 'created', 'Profile created', record.createdAt, kavya)
+    logEntry(record, 'updated', 'Updated Job, Doing now', touched, kavya)
     verify(record, job, 'employment', touched + 2 * DAY)
   }
 
-  /* --- Digitised paper forms (not yet claimed by a student account) --- */
+  /*
+   * --- Other students ---
+   *   0–3   batch 2026, final year over but not yet marked graduated
+   *   4–6   1st year · 7–9 2nd year · 10–12 3rd year (signed up, most visible on Explore)
+   *   13–21 earlier graduates, digitised from paper forms
+   */
   NAMES.forEach((name, i) => {
     const programme = PROGRAMMES[i % PROGRAMMES.length]
-    // Four records from the 2026 batch are still "current" so the graduate-batch flow can be shown.
-    const isUngraduated = i < 4
-    const graduation = isUngraduated ? 2026 : 2022 + (i % 5)
-    const admission = graduation - 3
-    const touchedDaysAgo = isUngraduated ? 150 + i * 5 : Math.floor(rand() * 620) + 5
+    const yearOfStudy = i >= 4 && i <= 12 ? Math.floor((i - 4) / 3) + 1 : 0
+    const isCurrent = i < 13
+    const admission = i < 4 ? 2023 : yearOfStudy ? session - yearOfStudy + 1 : 2019 + ((i - 13) % 5)
+    const graduation = admission + 3
+    const signedUp = yearOfStudy > 0 || i % 4 === 1
+    const touchedDaysAgo = yearOfStudy ? 5 + Math.floor(rand() * 120) : i < 4 ? 150 + i * 5 : Math.floor(rand() * 620) + 5
     const touched = now - touchedDaysAgo * DAY
-    const createdAt = Math.min(touched, now - 420 * DAY)
+    const createdAt = Math.min(touched, now - (yearOfStudy ? (yearOfStudy * 300) : 420) * DAY)
 
     const record = emptyRecord({
       id: `demo_rec_${i}`,
-      ownerUid: null,
+      ownerUid: signedUp ? `demo_student_${i}` : null,
       name,
       rollNo: nextRoll(admission),
       programme,
       admissionYear: String(admission),
       graduationYear: String(graduation),
-      status: isUngraduated ? 'current' : 'alumni',
+      status: isCurrent ? 'current' : 'alumni',
+      bio: signedUp ? pick(BIOS) : '',
       collegeEmail: `${name.split(' ')[0].toLowerCase()}.${admission}@college.example.edu`,
       personalEmail: rand() > 0.2 ? email(name, String(graduation)) : '',
       mobile: rand() > 0.15 ? `+91 90000 3${String(i).padStart(4, '0')}` : '',
       consent: true,
-      source: i % 3 === 0 ? 'import' : 'teacher',
+      directoryOptIn: signedUp && rand() > 0.15,
+      shareContact: rand() > 0.6,
+      source: signedUp ? 'self' : i % 3 === 0 ? 'import' : 'teacher',
       createdAt,
       updatedAt: touched,
       lastConfirmedAt: touched,
     })
 
-    if (rand() > 0.35) {
+    const yearsDone = isCurrent ? Math.max(1, Math.min(3, session - admission + 1)) : 3
+    if (yearsDone >= 2 && rand() > 0.35) {
       record.hadInternships = 'yes'
       record.internships = [makeInternship(admission + 1)]
-      if (rand() > 0.7) record.internships.push(makeInternship(admission + 2))
     } else {
-      record.hadInternships = rand() > 0.3 ? 'no' : ''
+      record.hadInternships = yearsDone >= 2 || rand() > 0.5 ? 'no' : ''
     }
 
-    if (rand() > 0.4) record.achievements.push(makeAchievement(admission + 1))
-    if (rand() > 0.7) record.achievements.push(makeAchievement(admission + 2))
+    for (let y = 0; y < yearsDone; y++) if (rand() > 0.45) record.achievements.push(makeAchievement(admission + y + 1))
     record.interests = [pick(INTERESTS)]
+    if (isCurrent) {
+      const count = 1 + Math.floor(rand() * 2)
+      const picked = new Set<number>()
+      while (picked.size < count) picked.add(Math.floor(rand() * ACTIVITIES.length))
+      record.activities = Array.from(picked).map((k) => makeActivity(Math.min(session, admission + yearsDone - 1), ACTIVITIES[k]))
+    }
 
-    if (!isUngraduated) {
+    if (!isCurrent) {
       const dice = rand()
       if (dice < 0.4) {
         record.higherStudies = [makeStudy(graduation)]
@@ -411,21 +479,25 @@ export async function seedRecords({ students, alumni, teacher, studyYear, studen
     }
 
     records.push(record)
-    logEntry(record, 'imported', record.source === 'import' ? 'Imported from alumni spreadsheet' : 'Digitised from paper Alumni Database form', createdAt)
-    if (touched > createdAt) logEntry(record, 'updated', 'Updated Job, Higher studies', touched)
+    if (signedUp) logEntry(record, 'created', 'Profile created', createdAt)
+    else logEntry(record, 'imported', record.source === 'import' ? 'Imported from alumni spreadsheet' : 'Digitised from paper Alumni Database form', createdAt)
+    if (touched > createdAt) logEntry(record, 'updated', isCurrent ? 'Updated Doing now, Achievements & interests' : 'Updated Job, Higher studies', touched)
 
     // Teachers have already checked some entries against the paper files.
-    const first = record.employment[0] ?? record.higherStudies[0]
-    if (first && rand() > 0.5) verify(record, first, record.employment[0] ? 'employment' : 'higherStudy', touched + DAY)
+    const first = record.employment[0] ?? record.higherStudies[0] ?? record.internships[0]
+    if (first && rand() > 0.5) {
+      const kind = record.employment[0] ? 'employment' : record.higherStudies[0] ? 'higherStudy' : 'internship'
+      verify(record, first, kind, touched + DAY)
+    }
   })
 
-  /* --- Update drives --- */
+  /* --- Update requests --- */
   const drives: UpdateDrive[] = [
     {
       id: 'demo_drive_2026',
-      title: 'Annual alumni update 2026',
+      title: 'Annual profile update 2026',
       message:
-        'Please review your record — current course or job, exams cleared and any offer/admission letters. It takes two minutes and feeds the college NIRF & NAAC reports.',
+        'Graduates: please check your profile — current course or job, exams cleared — and upload any offer or admission letters. It takes two minutes and feeds the college NIRF & NAAC reports.',
       audience: 'alumni',
       programme: '',
       graduationYear: '',
@@ -438,8 +510,8 @@ export async function seedRecords({ students, alumni, teacher, studyYear, studen
     },
     {
       id: 'demo_drive_2025',
-      title: 'Annual alumni update 2025',
-      message: 'Yearly check-in for all alumni.',
+      title: 'Annual profile update 2025',
+      message: 'Yearly check-in for graduates.',
       audience: 'alumni',
       programme: '',
       graduationYear: '',
@@ -452,23 +524,8 @@ export async function seedRecords({ students, alumni, teacher, studyYear, studen
     },
   ]
 
-  /* --- Opt-in alumni network cards --- */
-  for (const record of records) {
-    if (!record.ownerUid || !record.consent || !record.directoryOptIn) continue
-    directory.push({
-      id: record.ownerUid,
-      recordId: record.id,
-      name: record.name,
-      programme: record.programme,
-      graduationYear: record.graduationYear,
-      status: record.status,
-      headline: headline(record),
-      areas: areasOf(record),
-      interests: record.interests,
-      contactEmail: record.shareContact ? record.personalEmail || record.collegeEmail : '',
-      updatedAt: record.updatedAt,
-    })
-  }
+  /* --- Explore cards for everyone who opted in --- */
+  const directory = records.filter((r) => r.ownerUid && r.consent && r.directoryOptIn).map(directoryProfileOf)
 
   for (const item of records) await put(RECORDS, item)
   for (const item of updates) await put(UPDATES, item)

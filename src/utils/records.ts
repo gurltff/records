@@ -2,6 +2,7 @@ import { ACTIVITY_LABEL } from '../data/recordOptions'
 import type {
   Achievement,
   AchievementArea,
+  Activity,
   Employment,
   ExamResult,
   HigherStudy,
@@ -36,6 +37,7 @@ export function emptyRecord(partial: Partial<StudentRecord> = {}): StudentRecord
     admissionYear: '',
     graduationYear: '',
     status: 'current',
+    bio: '',
     collegeEmail: '',
     personalEmail: '',
     mobile: '',
@@ -45,6 +47,7 @@ export function emptyRecord(partial: Partial<StudentRecord> = {}): StudentRecord
     employment: [],
     activity: '',
     activityNote: '',
+    activities: [],
     exams: [],
     achievements: [],
     interests: [],
@@ -57,6 +60,36 @@ export function emptyRecord(partial: Partial<StudentRecord> = {}): StudentRecord
     lastConfirmedAt: now,
     ...partial,
   }
+}
+
+/* Fills fields added after a profile was saved, so older data keeps working. */
+export function normaliseRecord(record: StudentRecord): StudentRecord {
+  const defaults = emptyRecord()
+  const merged = { ...defaults, ...record } as StudentRecord
+  for (const key of ['internships', 'higherStudies', 'employment', 'activities', 'exams', 'achievements', 'interests'] as const) {
+    if (!Array.isArray(merged[key])) (merged as any)[key] = []
+  }
+  return merged
+}
+
+const filled = (...values: string[]) => values.some((v) => v.trim() !== '')
+
+/* Drops entries the student added but left blank. */
+export function pruneEmpty(record: StudentRecord): StudentRecord {
+  return {
+    ...record,
+    internships: record.internships.filter((i) => filled(i.title, i.organisation)),
+    higherStudies: record.higherStudies.filter((s) => filled(s.course, s.institution)),
+    employment: record.employment.filter((j) => filled(j.designation, j.company)),
+    activities: record.activities.filter((a) => filled(a.title)),
+    exams: record.exams.filter((e) => e.exam !== 'OTHERS' || filled(e.otherName)),
+    achievements: record.achievements.filter((a) => filled(a.title)),
+  }
+}
+
+export function emptyActivity(kind: Activity['kind'] = 'Club / society'): Activity {
+  const now = new Date()
+  return { id: newId('act'), title: '', kind, organisation: '', since: now.toISOString().slice(0, 7), ongoing: true, description: '' }
 }
 
 export function emptyInternship(): Internship {
@@ -98,10 +131,115 @@ export function batchFromStudyYear(studyYear: string | undefined, date = new Dat
   return { admissionYear: String(admission), graduationYear: String(admission + 3) }
 }
 
-/* The final-year session has ended, so this current-student record should move to alumni. */
+/* The final-year session has ended, so this profile should be marked as graduated. */
 export function isGraduationDue(record: StudentRecord, date = new Date()) {
   const year = Number(record.graduationYear)
   return record.status === 'current' && Number.isFinite(year) && year > 0 && academicYearOf(date) >= year
+}
+
+export interface StudyYear {
+  /* 1–4 while studying; 0 once graduated or the final session has ended. */
+  index: number
+  label: string
+  short: string
+}
+
+const ORDINAL = ['', '1st', '2nd', '3rd', '4th']
+
+export function studyYearOf(record: Pick<StudentRecord, 'status' | 'admissionYear' | 'graduationYear'>, date = new Date()): StudyYear {
+  const graduated = { index: 0, label: 'Graduated', short: 'Graduated' }
+  if (record.status === 'alumni') return graduated
+  const admission = Number(record.admissionYear)
+  const graduation = Number(record.graduationYear)
+  const session = academicYearOf(date)
+  if (graduation && session >= graduation) return graduated
+  if (!admission) return { index: 0, label: 'Current student', short: 'Student' }
+  const index = Math.min(4, Math.max(1, session - admission + 1))
+  return { index, label: STUDY_YEARS[index - 1], short: `${ORDINAL[index]} year` }
+}
+
+/* =========================================================
+   JOURNEY (year-by-year timeline)
+   ========================================================= */
+
+export interface JourneyItem {
+  id: string
+  kind: 'achievement' | 'internship' | 'exam' | 'activity' | 'higherStudy' | 'employment'
+  title: string
+  meta: string
+  date: string
+}
+
+export interface JourneyBucket {
+  key: string
+  label: string
+  items: JourneyItem[]
+}
+
+function bucketFor(date: string, record: StudentRecord) {
+  const admission = Number(record.admissionYear)
+  const graduation = Number(record.graduationYear)
+  if (!date) return { key: 'z-undated', label: 'Undated' }
+  const d = new Date(date.length === 4 ? `${date}-09-01` : date.length === 7 ? `${date}-01` : date)
+  if (Number.isNaN(d.getTime())) return { key: 'z-undated', label: 'Undated' }
+  const session = academicYearOf(d)
+  if (!admission) return { key: `s-${session}`, label: `${session}–${String(session + 1).slice(2)}` }
+  if (session < admission) return { key: 'a-before', label: 'Before college' }
+  if (graduation && session >= graduation) return { key: 'y-after', label: 'After graduation' }
+  const index = Math.min(4, session - admission + 1)
+  return { key: `b-${index}`, label: `${STUDY_YEARS[index - 1]} (${session}–${String(session + 1).slice(2)})` }
+}
+
+export function journeyOf(record: StudentRecord): JourneyBucket[] {
+  const items: JourneyItem[] = [
+    ...record.achievements.map((a) => ({ id: a.id, kind: 'achievement' as const, title: a.title, meta: `${a.area} · ${a.level}`, date: a.date })),
+    ...record.internships.map((i) => ({
+      id: i.id,
+      kind: 'internship' as const,
+      title: i.title || 'Internship',
+      meta: [i.organisation, durationLabel(i.startDate, i.endDate)].filter(Boolean).join(' · '),
+      date: i.startDate,
+    })),
+    ...record.exams.map((e) => ({
+      id: e.id,
+      kind: 'exam' as const,
+      title: `${e.exam === 'OTHERS' ? e.otherName || 'Exam' : e.exam} — ${e.result === 'qualified' ? 'cleared' : 'appeared'}`,
+      meta: e.score,
+      // Most entrance exams (JAM, GATE, CUET-PG) are held early in the year.
+      date: e.year ? `${e.year}-03` : '',
+    })),
+    ...record.activities.map((a) => ({
+      id: a.id,
+      kind: 'activity' as const,
+      title: a.title,
+      meta: [a.kind, a.organisation, a.ongoing ? 'ongoing' : ''].filter(Boolean).join(' · '),
+      date: a.since,
+    })),
+    ...record.higherStudies.map((s) => ({
+      id: s.id,
+      kind: 'higherStudy' as const,
+      title: [s.course, s.institution].filter(Boolean).join(' · '),
+      meta: s.admittedVia,
+      date: s.startYear ? `${s.startYear}-08` : '',
+    })),
+    ...record.employment.map((j) => ({
+      id: j.id,
+      kind: 'employment' as const,
+      title: [j.designation, j.company].filter(Boolean).join(' · '),
+      meta: j.location,
+      date: j.startDate,
+    })),
+  ].filter((item) => item.title.trim())
+
+  const buckets = new Map<string, JourneyBucket>()
+  for (const item of items) {
+    const { key, label } = bucketFor(item.date, record)
+    if (!buckets.has(key)) buckets.set(key, { key, label, items: [] })
+    buckets.get(key)!.items.push(item)
+  }
+  return Array.from(buckets.values())
+    .sort((a, b) => b.key.localeCompare(a.key))
+    .map((bucket) => ({ ...bucket, items: bucket.items.sort((a, b) => b.date.localeCompare(a.date)) }))
 }
 
 /* =========================================================
@@ -183,10 +321,23 @@ function joinParts(...parts: string[]) {
   return parts.map((p) => p.trim()).filter(Boolean).join(' · ')
 }
 
+/* Short labels for "doing now": ongoing activities, internships, course or job. */
+export function doingNow(record: StudentRecord): string[] {
+  const today = new Date().toISOString().slice(0, 10)
+  const labels = [
+    ...(record.status === 'alumni'
+      ? [currentJob(record), currentStudy(record)].filter(Boolean).map((x: any) => joinParts(x.designation ?? x.course, x.company ?? x.institution))
+      : []),
+    ...record.internships.filter((i) => i.endDate && i.endDate >= today).map((i) => joinParts('Interning', i.organisation)),
+    ...record.activities.filter((a) => a.ongoing && a.title.trim()).map((a) => a.title.trim()),
+  ]
+  return Array.from(new Set(labels.filter(Boolean)))
+}
+
 /* One-line "what are they doing now", e.g. "M.Sc. Applied Mathematics · NIT Warangal". */
 export function headline(record: StudentRecord) {
   const outcome = primaryOutcome(record)
-  if (outcome === 'studying') return joinParts(record.programme, 'Current student')
+  if (outcome === 'studying') return doingNow(record)[0] ?? joinParts(record.programme, studyYearOf(record).label)
   if (outcome === 'employed') {
     const job = currentJob(record)!
     return joinParts(job.designation, job.company)
@@ -226,7 +377,8 @@ export function completeness(record: StudentRecord, documentCount?: number): Com
     ],
     record.status === 'alumni'
       ? [primaryOutcome(record) !== 'unknown', 'Current status (higher studies, job or other)']
-      : [record.interests.length > 0 || record.achievements.length > 0, 'Achievements or areas of interest'],
+      : [record.activities.length > 0 || record.achievements.length > 0, "What you're doing now (an activity or achievement)"],
+    [Boolean(record.bio.trim()), 'A one-line bio'],
     [record.consent, 'Declaration & consent'],
   ]
 
@@ -331,6 +483,8 @@ export const ENTRY_KIND_LABEL: Record<VerifiableEntry['kind'] | 'document', stri
 
 const SECTIONS: [string, (keyof StudentRecord)[]][] = [
   ['Student details', ['name', 'rollNo', 'programme', 'admissionYear', 'graduationYear', 'status']],
+  ['About', ['bio']],
+  ['Doing now', ['activities']],
   ['Contact', ['collegeEmail', 'personalEmail', 'mobile']],
   ['Internships', ['hadInternships', 'internships']],
   ['Higher studies', ['higherStudies']],
@@ -458,6 +612,12 @@ export function formatDate(value: string | number) {
   const date = typeof value === 'number' ? new Date(value) : new Date(`${value}T00:00:00`)
   if (Number.isNaN(date.getTime())) return String(value)
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/* "2025-08" → "Aug 2025" */
+export function monthLabel(value: string) {
+  if (!/^\d{4}-\d{2}$/.test(value)) return value
+  return new Date(`${value}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
 }
 
 export function durationLabel(start: string, end: string) {

@@ -7,6 +7,7 @@ import {
   lastTouched,
   primaryOutcome,
   relativeDays,
+  studyYearOf,
   type Freshness,
 } from '../../utils/records'
 
@@ -40,9 +41,10 @@ export function OutcomeBadge({ record }: { record: StudentRecord }) {
 }
 
 export function StatusBadge({ record }: { record: StudentRecord }) {
+  const year = studyYearOf(record)
   return (
-    <span className={`badge border-ink whitespace-nowrap ${record.status === 'alumni' ? 'bg-ink text-cream-soft' : 'bg-sky text-ink'}`}>
-      {record.status === 'alumni' ? 'Alumni' : 'Current student'}
+    <span className={`badge border-ink whitespace-nowrap ${year.index === 0 ? 'bg-ink text-cream-soft' : 'bg-sky text-ink'}`}>
+      {year.label}
     </span>
   )
 }

@@ -409,7 +409,7 @@ export default function TeacherClassOverview() {
             to="/teacher/records"
             className="btn-outline"
           >
-            Student records
+            Student profiles
           </Link>
         </div>
       </section>
