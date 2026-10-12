@@ -1,0 +1,13 @@
+# Netlify serves the app from the site root (GitHub Pages uses /records/).
+[build]
+  command = "npx tsc -b && npx vite build --base=/"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Single-page app: let React Router handle every path.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
